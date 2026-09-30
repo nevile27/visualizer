@@ -31,7 +31,10 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl gnupg nginx
+apt-get install -y ca-certificates curl gnupg
+if ! systemctl is-active --quiet apache2; then
+  apt-get install -y nginx
+fi
 
 node_ok() {
   command -v node >/dev/null 2>&1 || return 1
@@ -47,8 +50,11 @@ if ! node_ok; then
   apt-get install -y nodejs
 fi
 
-BUILD_USER="${SUDO_USER:-root}"
-sudo -u "$BUILD_USER" -H bash -lc "cd '$ROOT' && npm ci && npm run build"
+if [[ -n "${SUDO_USER:-}" ]] && sudo -u "$SUDO_USER" test -w "$ROOT"; then
+  sudo -u "$SUDO_USER" -H bash -lc "cd '$ROOT' && npm ci && npm run build"
+else
+  (cd "$ROOT" && npm ci && npm run build)
+fi
 
 install -d -m 755 "$WEB_ROOT"
 find "$WEB_ROOT" -mindepth 1 -delete
@@ -56,32 +62,45 @@ cp -a "$ROOT/dist/." "$WEB_ROOT/"
 find "$WEB_ROOT" -type d -exec chmod 755 {} +
 find "$WEB_ROOT" -type f -exec chmod 644 {} +
 
-SERVER_NAME="$DOMAIN"
-if [[ "$DOMAIN" == "_" ]]; then
-  SERVER_NAME="_"
-fi
-sed "s/__SERVER_NAME__/${SERVER_NAME}/" "$ROOT/deploy/nginx.conf" > "$SITE"
-if [[ "$DOMAIN" == "_" ]]; then
-  sed -i 's/listen 80;/listen 80 default_server;/; s/listen \[::\]:80;/listen [::]:80 default_server;/' "$SITE"
-fi
-ln -sfn "$SITE" /etc/nginx/sites-enabled/hallplan
-rm -f /etc/nginx/sites-enabled/default
-nginx -t
-systemctl enable nginx
-systemctl reload nginx
-
-if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
-  ufw allow 'Nginx Full'
-fi
-
-if [[ "$DOMAIN" != "_" ]]; then
-  apt-get install -y certbot python3-certbot-nginx
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$EMAIL" --redirect
-fi
-
-echo "Hallplan est servi depuis ${WEB_ROOT}."
-if [[ "$DOMAIN" == "_" ]]; then
-  echo "Ouvrez http://$(hostname -I | awk '{print $1}')/"
+if systemctl is-active --quiet apache2; then
+  if systemctl is-active --quiet nginx; then
+    systemctl disable --now nginx
+  fi
+  grep -qE '^Listen 8080$' /etc/apache2/ports.conf || echo 'Listen 8080' >> /etc/apache2/ports.conf
+  cp "$ROOT/deploy/apache.conf" /etc/apache2/sites-available/hallplan.conf
+  a2ensite hallplan
+  apache2ctl configtest
+  systemctl reload apache2
+  if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+    ufw allow 8080/tcp
+  fi
+  echo "Apache occupe déjà le port 80. Hallplan est sur le port 8080."
+  echo "Ouvrez http://$(hostname -I | awk '{print $1}'):8080/"
 else
-  echo "Ouvrez https://${DOMAIN}/"
+  SERVER_NAME="$DOMAIN"
+  sed "s/__SERVER_NAME__/${SERVER_NAME}/" "$ROOT/deploy/nginx.conf" > "$SITE"
+  if [[ "$DOMAIN" == "_" ]]; then
+    sed -i 's/listen 80;/listen 80 default_server;/; s/listen \[::\]:80;/listen [::]:80 default_server;/' "$SITE"
+  fi
+  ln -sfn "$SITE" /etc/nginx/sites-enabled/hallplan
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t
+  systemctl enable nginx
+  systemctl reload nginx
+
+  if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+    ufw allow 'Nginx Full'
+  fi
+
+  if [[ "$DOMAIN" != "_" ]]; then
+    apt-get install -y certbot python3-certbot-nginx
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$EMAIL" --redirect
+  fi
+
+  echo "Hallplan est servi depuis ${WEB_ROOT}."
+  if [[ "$DOMAIN" == "_" ]]; then
+    echo "Ouvrez http://$(hostname -I | awk '{print $1}')/"
+  else
+    echo "Ouvrez https://${DOMAIN}/"
+  fi
 fi
