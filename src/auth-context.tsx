@@ -1,121 +1,140 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  canEdit,
-  hashPassword,
-  loadAccounts,
-  loadSessionId,
-  passwordError,
-  sameUsername,
-  saveAccounts,
-  saveSessionId,
-  usernameError,
-  verifyPassword,
-  type Account,
-  type Role,
-  type SessionUser,
-} from "./auth";
-import { uid } from "./model";
+  createAccount,
+  deleteAccount,
+  fetchAccounts,
+  fetchSession,
+  loginAccount,
+  logoutAccount,
+  patchAccount,
+  setupAdmin,
+  type PublicAccount,
+} from "./api";
+import { canEdit, passwordError, usernameError, type Role, type SessionUser } from "./auth";
 
 interface AuthValue {
   ready: boolean;
+  serverError: string | null;
   user: SessionUser | null;
-  accounts: Account[];
+  accounts: PublicAccount[];
   needsSetup: boolean;
   login: (username: string, password: string) => Promise<string | null>;
   logout: () => void;
   createAdmin: (username: string, password: string) => Promise<string | null>;
   createUser: (username: string, password: string, role: Exclude<Role, "admin">) => Promise<string | null>;
-  setUserRole: (id: string, role: Role) => string | null;
+  setUserRole: (id: string, role: Role) => Promise<string | null>;
   setUserPassword: (id: string, password: string) => Promise<string | null>;
-  removeUser: (id: string) => string | null;
+  removeUser: (id: string) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [accounts, setAccounts] = useState<Account[]>(() => loadAccounts());
-  const [user, setUser] = useState<SessionUser | null>(() => {
-    const id = loadSessionId();
-    const account = loadAccounts().find((entry) => entry.id === id);
-    return account ? publicUser(account) : null;
-  });
+  const [ready, setReady] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [accounts, setAccounts] = useState<PublicAccount[]>([]);
 
-  const api = useMemo<AuthValue>(() => {
-    const persist = (next: Account[]) => {
-      saveAccounts(next);
-      setAccounts(next);
+  useEffect(() => {
+    let cancel = false;
+    fetchSession()
+      .then(async (session) => {
+        if (cancel) return;
+        if (typeof session.needsSetup !== "boolean") {
+          throw new Error("L'API Hallplan ne répond pas. Le service hallplan-api n'est pas démarré.");
+        }
+        setNeedsSetup(session.needsSetup);
+        setUser(session.user);
+        if (session.user?.role === "admin") setAccounts((await fetchAccounts()).accounts);
+        setReady(true);
+      })
+      .catch((error: unknown) => {
+        if (cancel) return;
+        setServerError(error instanceof Error ? error.message : "Le serveur Hallplan est injoignable.");
+        setReady(true);
+      });
+    return () => {
+      cancel = true;
     };
+  }, []);
 
-    return {
-      ready: true,
-      user,
-      accounts,
-      needsSetup: accounts.length === 0,
-      login: async (username, password) => {
-        const account = accounts.find((entry) => sameUsername(entry.username, username));
-        if (!account || !(await verifyPassword(password, account.salt, account.hash))) {
-          return "Identifiant ou mot de passe incorrect.";
-        }
-        saveSessionId(account.id);
-        setUser(publicUser(account));
+  const api = useMemo<AuthValue>(() => ({
+    ready,
+    serverError,
+    user,
+    accounts,
+    needsSetup,
+    login: async (username, password) => {
+      try {
+        const session = await loginAccount(username, password);
+        setUser(session.user);
+        setNeedsSetup(false);
+        setServerError(null);
+        if (session.user.role === "admin") setAccounts((await fetchAccounts()).accounts);
         return null;
-      },
-      logout: () => {
-        saveSessionId(null);
-        setUser(null);
-      },
-      createAdmin: async (username, password) => {
-        if (accounts.length > 0) return "Un administrateur existe déjà.";
-        const error = usernameError(username) ?? passwordError(password);
-        if (error) return error;
-        const secret = await hashPassword(password);
-        const account: Account = { id: uid("user"), username: username.trim(), role: "admin", ...secret };
-        persist([account]);
-        saveSessionId(account.id);
-        setUser(publicUser(account));
+      } catch (error) {
+        return error instanceof Error ? error.message : "Identifiant ou mot de passe incorrect.";
+      }
+    },
+    logout: () => {
+      void logoutAccount().catch(() => undefined);
+      setUser(null);
+      setAccounts([]);
+    },
+    createAdmin: async (username, password) => {
+      const error = usernameError(username) ?? passwordError(password);
+      if (error) return error;
+      try {
+        const session = await setupAdmin(username, password);
+        setUser(session.user);
+        setNeedsSetup(false);
+        setAccounts([session.user]);
+        setServerError(null);
         return null;
-      },
-      createUser: async (username, password, role) => {
-        if (user?.role !== "admin") return "Seul un administrateur peut créer un compte.";
-        const error = usernameError(username) ?? passwordError(password);
-        if (error) return error;
-        if (accounts.some((entry) => sameUsername(entry.username, username))) return "Cet identifiant est déjà utilisé.";
-        const secret = await hashPassword(password);
-        persist([...accounts, { id: uid("user"), username: username.trim(), role, ...secret }]);
+      } catch (caught) {
+        return caught instanceof Error ? caught.message : "Le compte n'a pas pu être créé.";
+      }
+    },
+    createUser: async (username, password, role) => {
+      const error = usernameError(username) ?? passwordError(password);
+      if (error) return error;
+      try {
+        setAccounts((await createAccount(username, password, role)).accounts);
         return null;
-      },
-      setUserRole: (id, role) => {
-        if (user?.role !== "admin") return "Seul un administrateur peut modifier un rôle.";
-        const target = accounts.find((entry) => entry.id === id);
-        if (!target) return "Compte introuvable.";
-        if (target.role === "admin" && role !== "admin" && countAdmins(accounts) < 2) {
-          return "Il doit rester au moins un administrateur.";
-        }
-        const next = accounts.map((entry) => (entry.id === id ? { ...entry, role } : entry));
-        persist(next);
-        if (user.id === id) setUser({ ...user, role });
+      } catch (caught) {
+        return caught instanceof Error ? caught.message : "Le compte n'a pas pu être créé.";
+      }
+    },
+    setUserRole: async (id, role) => {
+      try {
+        const result = await patchAccount(id, { role });
+        setAccounts(result.accounts);
+        if (result.user && user?.id === result.user.id) setUser(result.user);
         return null;
-      },
-      setUserPassword: async (id, password) => {
-        if (user?.role !== "admin") return "Seul un administrateur peut changer un mot de passe.";
-        const error = passwordError(password);
-        if (error) return error;
-        if (!accounts.some((entry) => entry.id === id)) return "Compte introuvable.";
-        const secret = await hashPassword(password);
-        persist(accounts.map((entry) => (entry.id === id ? { ...entry, ...secret } : entry)));
+      } catch (caught) {
+        return caught instanceof Error ? caught.message : "Le rôle n'a pas pu être modifié.";
+      }
+    },
+    setUserPassword: async (id, password) => {
+      const error = passwordError(password);
+      if (error) return error;
+      try {
+        setAccounts((await patchAccount(id, { password })).accounts);
         return null;
-      },
-      removeUser: (id) => {
-        if (user?.role !== "admin") return "Seul un administrateur peut retirer un compte.";
-        if (user.id === id) return "Vous ne pouvez pas retirer votre propre compte.";
-        const target = accounts.find((entry) => entry.id === id);
-        if (!target) return "Compte introuvable.";
-        if (target.role === "admin" && countAdmins(accounts) < 2) return "Il doit rester au moins un administrateur.";
-        persist(accounts.filter((entry) => entry.id !== id));
+      } catch (caught) {
+        return caught instanceof Error ? caught.message : "Le mot de passe n'a pas pu être modifié.";
+      }
+    },
+    removeUser: async (id) => {
+      try {
+        setAccounts((await deleteAccount(id)).accounts);
         return null;
-      },
-    };
-  }, [accounts, user]);
+      } catch (caught) {
+        return caught instanceof Error ? caught.message : "Le compte n'a pas pu être retiré.";
+      }
+    },
+  }), [accounts, needsSetup, ready, serverError, user]);
 
   return <AuthContext.Provider value={api}>{children}</AuthContext.Provider>;
 }
@@ -129,12 +148,4 @@ export function useAuth() {
 export function useCanEdit() {
   const { user } = useAuth();
   return user ? canEdit(user.role) : false;
-}
-
-function publicUser(account: Account): SessionUser {
-  return { id: account.id, username: account.username, role: account.role };
-}
-
-function countAdmins(accounts: Account[]) {
-  return accounts.filter((entry) => entry.role === "admin").length;
 }

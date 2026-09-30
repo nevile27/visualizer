@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
+import { fetchCenters, saveCenters } from "./api";
 import {
   defaultRackHeight,
   nextPosition,
@@ -37,6 +38,7 @@ type Action =
   | { type: "set-view"; view: ViewMode }
   | { type: "set-active"; id: string }
   | { type: "notice"; notice: string | null }
+  | { type: "hydrate"; dataCenters: DataCenter[]; notice?: string | null }
   | { type: "replace"; dataCenters: DataCenter[] }
   | { type: "add-dc"; dc: DataCenter }
   | { type: "patch-dc"; dcId: string; patch: Partial<Pick<DataCenter, "name" | "location" | "notes" | "positionDirection">> }
@@ -52,15 +54,15 @@ type Action =
   | { type: "patch-eq"; dcId: string; aisleId: string; itemId: string; equipmentId: string; patch: Partial<Equipment> }
   | { type: "remove-eq"; dcId: string; aisleId: string; itemId: string; equipmentId: string };
 
-function loadCenters(): DataCenter[] {
+function readLocalCenters(): DataCenter[] | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return sampleDataCenters();
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as { dataCenters?: DataCenter[] };
-    if (!parsed.dataCenters?.length) return sampleDataCenters();
+    if (!parsed.dataCenters?.length) return null;
     return parsed.dataCenters;
   } catch {
-    return sampleDataCenters();
+    return null;
   }
 }
 
@@ -82,6 +84,16 @@ function reducer(state: State, action: Action): State {
       return { ...state, activeDcId: action.id, selection: null };
     case "notice":
       return { ...state, notice: action.notice };
+    case "hydrate": {
+      const stillThere = action.dataCenters.some((dc) => dc.id === state.activeDcId);
+      return {
+        ...state,
+        dataCenters: action.dataCenters,
+        activeDcId: stillThere ? state.activeDcId : action.dataCenters[0]?.id ?? null,
+        selection: stillThere ? state.selection : null,
+        notice: action.notice === undefined ? state.notice : action.notice,
+      };
+    }
     case "replace":
       return {
         ...state,
@@ -244,10 +256,9 @@ function mapEquipment(
 }
 
 function init(): State {
-  const dataCenters = loadCenters();
   return {
-    dataCenters,
-    activeDcId: dataCenters[0]?.id ?? null,
+    dataCenters: [],
+    activeDcId: null,
     selection: null,
     view: "3d",
     notice: null,
@@ -282,14 +293,68 @@ interface StoreValue extends State {
 
 export function StoreProvider({ children, canEdit }: { children: ReactNode; canEdit: boolean }) {
   const [state, dispatch] = useReducer(reducer, undefined, init);
+  const [ready, setReady] = useState(false);
+  const revision = useRef(0);
+  const skipSave = useRef(true);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, dataCenters: state.dataCenters }));
-    } catch {
-      /* quota or private mode */
+    let cancel = false;
+    void (async () => {
+      try {
+        const remote = await fetchCenters();
+        if (cancel) return;
+        let centers = remote.dataCenters;
+        let nextRevision = remote.revision;
+        if (centers.length === 0 && canEdit) {
+          const local = readLocalCenters();
+          const count = local?.length ?? 0;
+          if (local && count > 0 && window.confirm(`Ce navigateur contient ${count} centre${count > 1 ? "s" : ""} enregistré${count > 1 ? "s" : ""} seulement ici. Les copier sur le serveur pour les partager avec les autres machines ?`)) {
+            const saved = await saveCenters(nextRevision, local);
+            if (cancel) return;
+            centers = saved.dataCenters;
+            nextRevision = saved.revision;
+            if (!saved.conflict) localStorage.removeItem(STORAGE_KEY);
+          }
+        }
+        revision.current = nextRevision;
+        skipSave.current = true;
+        dispatch({ type: "hydrate", dataCenters: centers });
+        setReady(true);
+      } catch (error) {
+        if (cancel) return;
+        dispatch({ type: "notice", notice: error instanceof Error ? error.message : "Salles inaccessibles." });
+        setReady(true);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [canEdit]);
+
+  useEffect(() => {
+    if (!ready || !canEdit) return;
+    if (skipSave.current) {
+      skipSave.current = false;
+      return;
     }
-  }, [state.dataCenters]);
+    const snapshot = state.dataCenters;
+    const handle = window.setTimeout(() => {
+      void saveCenters(revision.current, snapshot).then((saved) => {
+        revision.current = saved.revision;
+        if (saved.conflict) {
+          skipSave.current = true;
+          dispatch({
+            type: "hydrate",
+            dataCenters: saved.dataCenters,
+            notice: saved.error ?? "Ces salles ont été modifiées sur une autre machine. La version du serveur est affichée.",
+          });
+        }
+      }).catch((error: unknown) => {
+        dispatch({ type: "notice", notice: error instanceof Error ? error.message : "Enregistrement impossible." });
+      });
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [state.dataCenters, ready, canEdit]);
 
   const activeDc = state.dataCenters.find((dc) => dc.id === state.activeDcId) ?? null;
 
@@ -388,6 +453,7 @@ export function StoreProvider({ children, canEdit }: { children: ReactNode; canE
     };
   }, [state, activeDc, canEdit]);
 
+  if (!ready) return <div className="empty-view">Chargement des salles…</div>;
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;
 }
 

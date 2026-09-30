@@ -61,8 +61,7 @@ export function UsersDialog({ onClose }: { onClose: () => void }) {
                       value={account.role}
                       disabled={self || onlyAdmin}
                       onChange={(event) => {
-                        const error = setUserRole(account.id, event.target.value as Role);
-                        setMessage(error);
+                        void setUserRole(account.id, event.target.value as Role).then(setMessage);
                       }}
                     >
                       <option value="admin">Administrateur</option>
@@ -99,7 +98,7 @@ export function UsersDialog({ onClose }: { onClose: () => void }) {
                         className="danger"
                         onClick={() => {
                           if (!window.confirm(`Retirer le compte ${account.username} ?`)) return;
-                          setMessage(removeUser(account.id));
+                          void removeUser(account.id).then(setMessage);
                         }}
                       >
                         Retirer

@@ -62,15 +62,26 @@ cp -a "$ROOT/dist/." "$WEB_ROOT/"
 find "$WEB_ROOT" -type d -exec chmod 755 {} +
 find "$WEB_ROOT" -type f -exec chmod 644 {} +
 
+if ! id hallplan >/dev/null 2>&1; then
+  useradd --system --no-create-home --shell /usr/sbin/nologin hallplan
+fi
+install -d -o hallplan -g hallplan -m 750 /var/lib/hallplan
+NODE_BIN="$(command -v node)"
+sed -e "s|__NODE__|${NODE_BIN}|" -e "s|__ROOT__|${ROOT}|" "$ROOT/deploy/hallplan-api.service" > /etc/systemd/system/hallplan-api.service
+systemctl daemon-reload
+systemctl enable hallplan-api
+systemctl restart hallplan-api
+
 if systemctl is-active --quiet apache2; then
   if systemctl is-active --quiet nginx; then
     systemctl disable --now nginx
   fi
+  a2enmod proxy proxy_http rewrite
   grep -qE '^Listen 8080$' /etc/apache2/ports.conf || echo 'Listen 8080' >> /etc/apache2/ports.conf
   cp "$ROOT/deploy/apache.conf" /etc/apache2/sites-available/hallplan.conf
   a2ensite hallplan
   apache2ctl configtest
-  systemctl reload apache2
+  systemctl restart apache2
   if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
     ufw allow 8080/tcp
   fi

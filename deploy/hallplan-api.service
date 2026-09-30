@@ -1,0 +1,18 @@
+[Unit]
+Description=Hallplan API
+After=network.target
+
+[Service]
+Type=simple
+User=hallplan
+Group=hallplan
+WorkingDirectory=__ROOT__
+Environment=HALLPLAN_DATA=/var/lib/hallplan/state.json
+Environment=HALLPLAN_PORT=8091
+Environment=HALLPLAN_HOST=127.0.0.1
+ExecStart=__NODE__ __ROOT__/server/index.mjs
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
