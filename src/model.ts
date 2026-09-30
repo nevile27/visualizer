@@ -48,8 +48,10 @@ export const SIDES: { id: Side; label: string }[] = [
 const STATUS_RANK: EquipmentStatus[] = ["ok", "offline", "maintenance", "warning", "critical"];
 
 export function uid(prefix: string) {
-  const bytes = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
-  return `${prefix}-${bytes}`;
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${prefix}-${hex}`;
 }
 
 export function typeMeta(type: EquipmentType) {

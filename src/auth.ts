@@ -83,15 +83,19 @@ export async function hashPassword(password: string, salt?: Uint8Array) {
 }
 
 async function deriveKey(password: Uint8Array, salt: Uint8Array) {
-  const subtle = crypto.subtle;
-  if (subtle) {
-    const key = await subtle.importKey("raw", password.buffer as ArrayBuffer, "PBKDF2", false, ["deriveBits"]);
-    const bits = await subtle.deriveBits(
-      { name: "PBKDF2", salt: salt.buffer as ArrayBuffer, iterations: ITERATIONS, hash: "SHA-256" },
-      key,
-      256,
-    );
-    return new Uint8Array(bits);
+  try {
+    const subtle = crypto.subtle;
+    if (subtle) {
+      const key = await subtle.importKey("raw", password.buffer as ArrayBuffer, "PBKDF2", false, ["deriveBits"]);
+      const bits = await subtle.deriveBits(
+        { name: "PBKDF2", salt: salt.buffer as ArrayBuffer, iterations: ITERATIONS, hash: "SHA-256" },
+        key,
+        256,
+      );
+      return new Uint8Array(bits);
+    }
+  } catch {
+    /* Sur http://IP, le navigateur refuse SubtleCrypto. */
   }
   return pbkdf2Sha256(password, salt, ITERATIONS, 32);
 }
