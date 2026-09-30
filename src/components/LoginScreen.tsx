@@ -15,14 +15,20 @@ export function LoginScreen() {
     event.preventDefault();
     if (pending) return;
     setPending(true);
-    const message = needsSetup
-      ? password !== confirm
-        ? "Les deux mots de passe ne correspondent pas."
-        : await createAdmin(username, password)
-      : await login(username, password);
-    setPending(false);
-    setError(message);
-    if (!message && !needsSetup) setPassword("");
+    setError(null);
+    try {
+      const message = needsSetup
+        ? password !== confirm
+          ? "Les deux mots de passe ne correspondent pas."
+          : await createAdmin(username, password)
+        : await login(username, password);
+      setError(message);
+      if (!message && !needsSetup) setPassword("");
+    } catch {
+      setError("Le mot de passe n'a pas pu être enregistré. Réessayez.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -59,7 +65,7 @@ export function LoginScreen() {
         ) : null}
         {error ? <p className="error">{error}</p> : null}
         <button type="submit" className="primary" disabled={pending}>
-          {needsSetup ? "Créer l'administrateur" : "Entrer"}
+          {pending ? "Veuillez patienter…" : needsSetup ? "Créer l'administrateur" : "Entrer"}
         </button>
       </form>
     </div>

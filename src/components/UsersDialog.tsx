@@ -16,13 +16,18 @@ export function UsersDialog({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     if (pending) return;
     setPending(true);
-    const error = await createUser(username, password, role);
-    setPending(false);
-    setMessage(error);
-    if (!error) {
-      setUsername("");
-      setPassword("");
-      setRole("viewer");
+    try {
+      const error = await createUser(username, password, role);
+      setMessage(error);
+      if (!error) {
+        setUsername("");
+        setPassword("");
+        setRole("viewer");
+      }
+    } catch {
+      setMessage("Le mot de passe n'a pas pu être enregistré. Réessayez.");
+    } finally {
+      setPending(false);
     }
   }
 

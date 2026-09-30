@@ -1,3 +1,5 @@
+import { pbkdf2Sha256 } from "./pbkdf2";
+
 export type Role = "admin" | "setter" | "viewer";
 
 export interface Account {
@@ -71,15 +73,27 @@ export function sameUsername(a: string, b: string) {
   return a.trim().toLocaleLowerCase("fr") === b.trim().toLocaleLowerCase("fr");
 }
 
+const ITERATIONS = 120_000;
+
 export async function hashPassword(password: string, salt?: Uint8Array) {
   const saltBytes = salt ?? crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: saltBytes.buffer as ArrayBuffer, iterations: 120_000, hash: "SHA-256" },
-    key,
-    256,
-  );
-  return { salt: bytesToB64(saltBytes), hash: bytesToB64(new Uint8Array(bits)) };
+  const passwordBytes = new TextEncoder().encode(password);
+  const bits = await deriveKey(passwordBytes, saltBytes);
+  return { salt: bytesToB64(saltBytes), hash: bytesToB64(bits) };
+}
+
+async function deriveKey(password: Uint8Array, salt: Uint8Array) {
+  const subtle = crypto.subtle;
+  if (subtle) {
+    const key = await subtle.importKey("raw", password.buffer as ArrayBuffer, "PBKDF2", false, ["deriveBits"]);
+    const bits = await subtle.deriveBits(
+      { name: "PBKDF2", salt: salt.buffer as ArrayBuffer, iterations: ITERATIONS, hash: "SHA-256" },
+      key,
+      256,
+    );
+    return new Uint8Array(bits);
+  }
+  return pbkdf2Sha256(password, salt, ITERATIONS, 32);
 }
 
 export async function verifyPassword(password: string, salt: string, hash: string) {
