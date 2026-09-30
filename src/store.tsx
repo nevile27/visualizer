@@ -1,0 +1,398 @@
+import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import {
+  defaultRackHeight,
+  nextPosition,
+  suggestCoolingName,
+  suggestRackName,
+  uid,
+} from "./model";
+import { sampleDataCenters } from "./sample";
+import type {
+  Aisle,
+  CoolingType,
+  CoolingUnit,
+  DataCenter,
+  Equipment,
+  Rack,
+  Selection,
+  Side,
+  ViewMode,
+} from "./types";
+
+const STORAGE_KEY = "hallplan-v1";
+
+type RackPatch = Partial<Pick<Rack, "name" | "side" | "position" | "heightU" | "notes">>;
+type CoolingPatch = Partial<Pick<CoolingUnit, "name" | "side" | "position" | "coolingType" | "capacityKw" | "status" | "notes">>;
+
+interface State {
+  dataCenters: DataCenter[];
+  activeDcId: string | null;
+  selection: Selection | null;
+  view: ViewMode;
+  notice: string | null;
+}
+
+type Action =
+  | { type: "select"; selection: Selection | null }
+  | { type: "set-view"; view: ViewMode }
+  | { type: "set-active"; id: string }
+  | { type: "notice"; notice: string | null }
+  | { type: "replace"; dataCenters: DataCenter[] }
+  | { type: "add-dc"; dc: DataCenter }
+  | { type: "patch-dc"; dcId: string; patch: Partial<Pick<DataCenter, "name" | "location" | "notes" | "positionDirection">> }
+  | { type: "remove-dc"; dcId: string }
+  | { type: "add-aisle"; dcId: string; aisle: Aisle }
+  | { type: "patch-aisle"; dcId: string; aisleId: string; name: string }
+  | { type: "remove-aisle"; dcId: string; aisleId: string }
+  | { type: "add-item"; dcId: string; aisleId: string; item: Rack | CoolingUnit }
+  | { type: "patch-rack"; dcId: string; aisleId: string; itemId: string; patch: RackPatch }
+  | { type: "patch-cooling"; dcId: string; aisleId: string; itemId: string; patch: CoolingPatch }
+  | { type: "remove-item"; dcId: string; aisleId: string; itemId: string }
+  | { type: "add-eq"; dcId: string; aisleId: string; itemId: string; equipment: Equipment }
+  | { type: "patch-eq"; dcId: string; aisleId: string; itemId: string; equipmentId: string; patch: Partial<Equipment> }
+  | { type: "remove-eq"; dcId: string; aisleId: string; itemId: string; equipmentId: string };
+
+function loadCenters(): DataCenter[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return sampleDataCenters();
+    const parsed = JSON.parse(raw) as { dataCenters?: DataCenter[] };
+    if (!parsed.dataCenters?.length) return sampleDataCenters();
+    return parsed.dataCenters;
+  } catch {
+    return sampleDataCenters();
+  }
+}
+
+function selectionInAisle(selection: Selection | null, aisleId: string) {
+  return selection !== null && selection.aisleId === aisleId;
+}
+
+function selectionOnItem(selection: Selection | null, itemId: string) {
+  return selection !== null && selection.kind !== "aisle" && selection.itemId === itemId;
+}
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "select":
+      return { ...state, selection: action.selection };
+    case "set-view":
+      return { ...state, view: action.view };
+    case "set-active":
+      return { ...state, activeDcId: action.id, selection: null };
+    case "notice":
+      return { ...state, notice: action.notice };
+    case "replace":
+      return {
+        ...state,
+        dataCenters: action.dataCenters,
+        activeDcId: action.dataCenters[0]?.id ?? null,
+        selection: null,
+        notice: null,
+      };
+    case "add-dc":
+      return {
+        ...state,
+        dataCenters: [...state.dataCenters, action.dc],
+        activeDcId: action.dc.id,
+        selection: null,
+      };
+    case "patch-dc":
+      return {
+        ...state,
+        dataCenters: state.dataCenters.map((dc) => (dc.id === action.dcId ? { ...dc, ...action.patch } : dc)),
+      };
+    case "remove-dc": {
+      const dataCenters = state.dataCenters.filter((dc) => dc.id !== action.dcId);
+      const activeDcId = state.activeDcId === action.dcId ? dataCenters[0]?.id ?? null : state.activeDcId;
+      return { ...state, dataCenters, activeDcId, selection: state.activeDcId === action.dcId ? null : state.selection };
+    }
+    case "add-aisle":
+      return {
+        ...state,
+        dataCenters: state.dataCenters.map((dc) => (
+          dc.id === action.dcId ? { ...dc, aisles: [...dc.aisles, action.aisle] } : dc
+        )),
+        selection: { kind: "aisle", aisleId: action.aisle.id },
+      };
+    case "patch-aisle":
+      return {
+        ...state,
+        dataCenters: state.dataCenters.map((dc) => (
+          dc.id === action.dcId
+            ? { ...dc, aisles: dc.aisles.map((aisle) => (aisle.id === action.aisleId ? { ...aisle, name: action.name } : aisle)) }
+            : dc
+        )),
+      };
+    case "remove-aisle":
+      return {
+        ...state,
+        selection: selectionInAisle(state.selection, action.aisleId) ? null : state.selection,
+        dataCenters: state.dataCenters.map((dc) => (
+          dc.id === action.dcId ? { ...dc, aisles: dc.aisles.filter((aisle) => aisle.id !== action.aisleId) } : dc
+        )),
+      };
+    case "add-item":
+      return {
+        ...state,
+        selection: { kind: "item", aisleId: action.aisleId, itemId: action.item.id },
+        dataCenters: state.dataCenters.map((dc) => (
+          dc.id === action.dcId
+            ? {
+                ...dc,
+                aisles: dc.aisles.map((aisle) => (
+                  aisle.id === action.aisleId ? { ...aisle, items: [...aisle.items, action.item] } : aisle
+                )),
+              }
+            : dc
+        )),
+      };
+    case "patch-rack":
+    case "patch-cooling":
+      return {
+        ...state,
+        dataCenters: state.dataCenters.map((dc) => (
+          dc.id === action.dcId
+            ? {
+                ...dc,
+                aisles: dc.aisles.map((aisle) => (
+                  aisle.id === action.aisleId
+                    ? {
+                        ...aisle,
+                        items: aisle.items.map((item) => {
+                          if (item.id !== action.itemId) return item;
+                          if (action.type === "patch-rack" && item.kind === "rack") return { ...item, ...action.patch };
+                          if (action.type === "patch-cooling" && item.kind === "cooling") return { ...item, ...action.patch };
+                          return item;
+                        }),
+                      }
+                    : aisle
+                )),
+              }
+            : dc
+        )),
+      };
+    case "remove-item":
+      return {
+        ...state,
+        selection: selectionOnItem(state.selection, action.itemId) ? { kind: "aisle", aisleId: action.aisleId } : state.selection,
+        dataCenters: state.dataCenters.map((dc) => (
+          dc.id === action.dcId
+            ? {
+                ...dc,
+                aisles: dc.aisles.map((aisle) => (
+                  aisle.id === action.aisleId ? { ...aisle, items: aisle.items.filter((item) => item.id !== action.itemId) } : aisle
+                )),
+              }
+            : dc
+        )),
+      };
+    case "add-eq":
+      return {
+        ...state,
+        dataCenters: mapEquipment(state.dataCenters, action.dcId, action.aisleId, action.itemId, (equipment) => [
+          ...equipment,
+          action.equipment,
+        ]),
+      };
+    case "patch-eq":
+      return {
+        ...state,
+        dataCenters: mapEquipment(state.dataCenters, action.dcId, action.aisleId, action.itemId, (equipment) => (
+          equipment.map((eq) => (eq.id === action.equipmentId ? { ...eq, ...action.patch } : eq))
+        )),
+      };
+    case "remove-eq":
+      return {
+        ...state,
+        selection: state.selection?.kind === "equipment" && state.selection.equipmentId === action.equipmentId
+          ? { kind: "item", aisleId: action.aisleId, itemId: action.itemId }
+          : state.selection,
+        dataCenters: mapEquipment(state.dataCenters, action.dcId, action.aisleId, action.itemId, (equipment) => (
+          equipment.filter((eq) => eq.id !== action.equipmentId)
+        )),
+      };
+    default:
+      return state;
+  }
+}
+
+function mapEquipment(
+  centers: DataCenter[],
+  dcId: string,
+  aisleId: string,
+  itemId: string,
+  update: (equipment: Equipment[]) => Equipment[],
+) {
+  return centers.map((dc) => (
+    dc.id === dcId
+      ? {
+          ...dc,
+          aisles: dc.aisles.map((aisle) => (
+            aisle.id === aisleId
+              ? {
+                  ...aisle,
+                  items: aisle.items.map((item) => (
+                    item.kind === "rack" && item.id === itemId ? { ...item, equipment: update(item.equipment) } : item
+                  )),
+                }
+              : aisle
+          )),
+        }
+      : dc
+  ));
+}
+
+function init(): State {
+  const dataCenters = loadCenters();
+  return {
+    dataCenters,
+    activeDcId: dataCenters[0]?.id ?? null,
+    selection: null,
+    view: "3d",
+    notice: null,
+  };
+}
+
+const StoreContext = createContext<StoreValue | null>(null);
+
+interface StoreValue extends State {
+  activeDc: DataCenter | null;
+  setView: (view: ViewMode) => void;
+  setActive: (id: string) => void;
+  select: (selection: Selection | null) => void;
+  notify: (notice: string | null) => void;
+  replaceAll: (dataCenters: DataCenter[]) => void;
+  addGenerated: (dc: DataCenter) => void;
+  loadExample: () => void;
+  patchDc: (patch: Partial<Pick<DataCenter, "name" | "location" | "notes" | "positionDirection">>) => void;
+  removeDc: () => void;
+  addAisle: (name: string) => void;
+  renameAisle: (aisleId: string, name: string) => void;
+  removeAisle: (aisleId: string) => void;
+  addRack: (aisle: Aisle, side: Side, extra?: { name?: string; position?: number; heightU?: number }) => void;
+  addCooling: (aisle: Aisle, side: Side, coolingType: CoolingType, capacityKw: number, extra?: { name?: string; position?: number }) => void;
+  patchRack: (aisleId: string, itemId: string, patch: RackPatch) => void;
+  patchCooling: (aisleId: string, itemId: string, patch: CoolingPatch) => void;
+  removeItem: (aisleId: string, itemId: string) => void;
+  addEquipment: (aisleId: string, itemId: string, equipment: Omit<Equipment, "id">) => void;
+  patchEquipment: (aisleId: string, itemId: string, equipmentId: string, patch: Partial<Equipment>) => void;
+  removeEquipment: (aisleId: string, itemId: string, equipmentId: string) => void;
+}
+
+export function StoreProvider({ children, canEdit }: { children: ReactNode; canEdit: boolean }) {
+  const [state, dispatch] = useReducer(reducer, undefined, init);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, dataCenters: state.dataCenters }));
+    } catch {
+      /* quota or private mode */
+    }
+  }, [state.dataCenters]);
+
+  const activeDc = state.dataCenters.find((dc) => dc.id === state.activeDcId) ?? null;
+
+  const api = useMemo<StoreValue>(() => {
+    const dcId = state.activeDcId;
+    return {
+      ...state,
+      activeDc,
+      setView: (view) => dispatch({ type: "set-view", view }),
+      setActive: (id) => dispatch({ type: "set-active", id }),
+      select: (selection) => dispatch({ type: "select", selection }),
+      notify: (notice) => dispatch({ type: "notice", notice }),
+      replaceAll: (dataCenters) => {
+        if (canEdit) dispatch({ type: "replace", dataCenters });
+      },
+      addGenerated: (dc) => {
+        if (canEdit) dispatch({ type: "add-dc", dc });
+      },
+      loadExample: () => {
+        if (canEdit) dispatch({ type: "replace", dataCenters: sampleDataCenters() });
+      },
+      patchDc: (patch) => {
+        if (canEdit && dcId) dispatch({ type: "patch-dc", dcId, patch });
+      },
+      removeDc: () => {
+        if (canEdit && dcId) dispatch({ type: "remove-dc", dcId });
+      },
+      addAisle: (name) => {
+        if (!canEdit || !dcId) return;
+        dispatch({
+          type: "add-aisle",
+          dcId,
+          aisle: { id: uid("aisle"), name: name.trim() || "Allée", items: [] },
+        });
+      },
+      renameAisle: (aisleId, name) => {
+        if (canEdit && dcId) dispatch({ type: "patch-aisle", dcId, aisleId, name });
+      },
+      removeAisle: (aisleId) => {
+        if (canEdit && dcId) dispatch({ type: "remove-aisle", dcId, aisleId });
+      },
+      addRack: (aisle, side, extra) => {
+        if (!canEdit || !dcId) return;
+        const item: Rack = {
+          kind: "rack",
+          id: uid("rack"),
+          name: extra?.name?.trim() || suggestRackName(aisle, side),
+          side,
+          position: extra?.position ?? nextPosition(aisle, side),
+          heightU: extra?.heightU ?? defaultRackHeight(aisle),
+          notes: "",
+          equipment: [],
+        };
+        dispatch({ type: "add-item", dcId, aisleId: aisle.id, item });
+      },
+      addCooling: (aisle, side, coolingType, capacityKw, extra) => {
+        if (!canEdit || !dcId) return;
+        const item: CoolingUnit = {
+          kind: "cooling",
+          id: uid("cool"),
+          name: extra?.name?.trim() || suggestCoolingName(aisle),
+          side,
+          position: extra?.position ?? nextPosition(aisle, side),
+          coolingType,
+          capacityKw,
+          status: "ok",
+          notes: "",
+        };
+        dispatch({ type: "add-item", dcId, aisleId: aisle.id, item });
+      },
+      patchRack: (aisleId, itemId, patch) => {
+        if (canEdit && dcId) dispatch({ type: "patch-rack", dcId, aisleId, itemId, patch });
+      },
+      patchCooling: (aisleId, itemId, patch) => {
+        if (canEdit && dcId) dispatch({ type: "patch-cooling", dcId, aisleId, itemId, patch });
+      },
+      removeItem: (aisleId, itemId) => {
+        if (canEdit && dcId) dispatch({ type: "remove-item", dcId, aisleId, itemId });
+      },
+      addEquipment: (aisleId, itemId, equipment) => {
+        if (!canEdit || !dcId) return;
+        dispatch({
+          type: "add-eq",
+          dcId,
+          aisleId,
+          itemId,
+          equipment: { ...equipment, id: uid("eq") },
+        });
+      },
+      patchEquipment: (aisleId, itemId, equipmentId, patch) => {
+        if (canEdit && dcId) dispatch({ type: "patch-eq", dcId, aisleId, itemId, equipmentId, patch });
+      },
+      removeEquipment: (aisleId, itemId, equipmentId) => {
+        if (canEdit && dcId) dispatch({ type: "remove-eq", dcId, aisleId, itemId, equipmentId });
+      },
+    };
+  }, [state, activeDc, canEdit]);
+
+  return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;
+}
+
+export function useStore() {
+  const value = useContext(StoreContext);
+  if (!value) throw new Error("useStore doit être utilisé dans StoreProvider");
+  return value;
+}
