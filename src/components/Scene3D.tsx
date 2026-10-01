@@ -232,8 +232,7 @@ function EquipmentCard({ equipment, rackName }: { equipment: Equipment; rackName
       <strong>{equipment.name}</strong>
       <p>{[kind.label, identity].filter(Boolean).join(" · ")}</p>
       <p><i style={{ background: status.color }} />{status.label}</p>
-      <p className="kicker">Observations</p>
-      <p className="eq-card-notes">{facts.observations || "Aucune observation."}</p>
+      {facts.observations ? <p className="eq-card-notes">{facts.observations}</p> : null}
       {facts.ips.length ? <p className="eq-card-ip">IP {facts.ips.join(" · ")}</p> : null}
       {facts.extra.length ? <p>{facts.extra.join(" · ")}</p> : null}
     </div>

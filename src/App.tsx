@@ -8,8 +8,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { UsersDialog } from "./components/UsersDialog";
 import { dataCenterFromSpreadsheet, describeImport } from "./inventory";
-import { JSON_EXAMPLE, parseDocument, safeFileName } from "./model";
-import { downloadText } from "./download";
+import { parseDocument } from "./model";
 import { useStore } from "./store";
 
 const Scene3D = lazy(() => import("./components/Scene3D"));
@@ -20,7 +19,6 @@ export function App() {
   const edit = user ? canEdit(user.role) : false;
   const fileRef = useRef<HTMLInputElement>(null);
   const [builder, setBuilder] = useState(false);
-  const [help, setHelp] = useState(false);
   const [users, setUsers] = useState(false);
 
   useEffect(() => {
@@ -126,13 +124,6 @@ export function App() {
           </div>
           {edit ? <button type="button" className="primary" onClick={() => setBuilder(true)}>Nouveau centre</button> : null}
           {edit ? <button type="button" onClick={() => fileRef.current?.click()}>Importer</button> : null}
-          <button
-            type="button"
-            onClick={() => downloadText(JSON.stringify({ version: 1, dataCenters: store.dataCenters }, null, 2), `${safeFileName(store.activeDc?.name ?? "hallplan")}.json`)}
-          >
-            Exporter
-          </button>
-          <button type="button" onClick={() => setHelp(true)}>Format</button>
           {edit ? (
             <button
               type="button"
@@ -177,32 +168,6 @@ export function App() {
       </div>
       {builder && edit ? <Builder onClose={() => setBuilder(false)} /> : null}
       {users && user?.role === "admin" ? <UsersDialog onClose={() => setUsers(false)} /> : null}
-      {help ? (
-        <div className="modal-back" onMouseDown={() => setHelp(false)}>
-          <div className="modal wide" role="dialog" aria-labelledby="help-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div>
-              <p className="kicker">Import</p>
-              <h2 id="help-title">Format des données</h2>
-            </div>
-            <ul className="help-list">
-              <li>Un classeur Excel (.xlsx) avec les feuilles Racks, Cooling et Équipements. La colonne Position place la baie ou le froid dans l'allée. La feuille Équipements rattache chaque ligne à l'ID du rack.</li>
-              <li>La position U accepte un U seul, une paire (« 35 & 34 ») ou une plage (« 17 à 12 »). U1 reste en bas. Sans colonne Côté, tout est placé à gauche.</li>
-              <li>L'import Excel ajoute un centre et conserve ceux déjà ouverts. Le JSON, lui, les remplace.</li>
-              <li>Un centre contient des allées. Chaque allée a deux côtés : gauche et droite.</li>
-              <li>La position commence à 1, séparément sur chaque côté. Les numéros du haut du plan sont ces positions.</li>
-              <li>positionDirection vaut "ltr" (position 1 à gauche) ou "rtl" (position 1 à droite).</li>
-              <li>Dans un rack, U1 est en bas. positionU est le U de départ, heightU la hauteur occupée.</li>
-              <li>kind vaut "rack" ou "cooling". Les types d'équipement : server, storage, switch, router, firewall, pdu, patch, blank, other.</li>
-              <li>Vous pouvez aussi déposer un fichier JSON ou Excel sur la fenêtre.</li>
-            </ul>
-            <pre className="json">{JSON_EXAMPLE}</pre>
-            <div className="row-actions">
-              <button type="button" onClick={() => downloadText(JSON_EXAMPLE, "hallplan-exemple.json")}>Télécharger l'exemple</button>
-              <button type="button" className="primary" onClick={() => setHelp(false)}>Fermer</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
       {store.notice ? (
         <div className={store.notice.startsWith("Importé ") ? "toast success" : "toast"} role="status">
           <p>{store.notice}</p>
