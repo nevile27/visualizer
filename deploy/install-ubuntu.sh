@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installe Hallplan sur Ubuntu : build statique servi par Nginx.
-# Usage, depuis le dépôt, sur le serveur :
+# Première installation de Hallplan sur Ubuntu.
+# Pour une installation déjà en place, utilisez deploy/update.sh.
 #   sudo ./deploy/install-ubuntu.sh
 #   sudo ./deploy/install-ubuntu.sh --domain hallplan.exemple.fr --email admin@exemple.fr
 set -euo pipefail
