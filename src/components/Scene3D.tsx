@@ -4,11 +4,11 @@ import { Component, useImperativeHandle, useRef, useState, type ReactNode, type 
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { MeshStandardMaterial } from "three";
 import { downloadUrl } from "../download";
-import { maxPosition, positionDirection, safeFileName, slotFromLeft, statusMeta, typeMeta, worstStatus } from "../model";
+import { maxPosition, positionDirection, safeFileName, slotFromLeft, statusMeta, typeMeta, uRange, worstStatus } from "../model";
 import { useCanEdit } from "../auth-context";
 import { useStore } from "../store";
 import { roomColors, useTheme } from "../theme";
-import type { AisleItem, DataCenter, EquipmentStatus, PositionDirection, Side } from "../types";
+import type { AisleItem, DataCenter, Equipment, EquipmentStatus, PositionDirection, Side } from "../types";
 
 const RACK_W = 0.6;
 const RACK_D = 1.15;
@@ -182,17 +182,61 @@ function Cabinet({
               select({ kind: "equipment", aisleId, itemId: item.id, equipmentId: eq.id });
             }}
           >
-            <boxGeometry args={[RACK_W * 0.72, h, 0.015]} />
+            <boxGeometry args={[RACK_W * 0.72, h, 0.04]} />
             <meshStandardMaterial color={meta.color} emissive={meta.color} emissiveIntensity={hot ? 0.65 : 0.12} />
+            {hot ? (
+              <Html position={[face * 0.55, 0, face * 0.06]} zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
+                <EquipmentCard equipment={eq} rackName={item.name} />
+              </Html>
+            ) : null}
           </mesh>
         );
       })}
-      {selected ? (
+      {selected && !selectedEquipmentId ? (
         <Html position={[0, BASE + RACK_H + 0.18, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
           <div className="float-tag">{item.name}</div>
         </Html>
       ) : null}
     </group>
+  );
+}
+
+function equipmentFacts(notes: string) {
+  const ips: string[] = [];
+  const observations: string[] = [];
+  const extra: string[] = [];
+  for (const line of notes.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean)) {
+    const labeled = line.match(/^(?:ip|adresse ip)\s*:?\s*(.+)$/i);
+    if (labeled) {
+      ips.push(labeled[1]);
+      continue;
+    }
+    if (/^\d+\s+alimentations?$/i.test(line) || /^\d+\s+ports?(?:\s+réseau)?$/i.test(line) || /^statut\s*:/i.test(line)) {
+      extra.push(line);
+      continue;
+    }
+    observations.push(line);
+    for (const address of line.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? []) ips.push(address);
+  }
+  return { ips: [...new Set(ips)], observations: observations.join("\n"), extra };
+}
+
+function EquipmentCard({ equipment, rackName }: { equipment: Equipment; rackName: string }) {
+  const kind = typeMeta(equipment.type);
+  const status = statusMeta(equipment.status);
+  const facts = equipmentFacts(equipment.notes);
+  const identity = [equipment.manufacturer, equipment.model].filter(Boolean).join(" ");
+  return (
+    <div className="eq-card">
+      <p className="kicker">{rackName} · {uRange(equipment)}</p>
+      <strong>{equipment.name}</strong>
+      <p>{[kind.label, identity].filter(Boolean).join(" · ")}</p>
+      <p><i style={{ background: status.color }} />{status.label}</p>
+      <p className="kicker">Observations</p>
+      <p className="eq-card-notes">{facts.observations || "Aucune observation."}</p>
+      {facts.ips.length ? <p className="eq-card-ip">IP {facts.ips.join(" · ")}</p> : null}
+      {facts.extra.length ? <p>{facts.extra.join(" · ")}</p> : null}
+    </div>
   );
 }
 

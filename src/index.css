@@ -701,6 +701,43 @@ pre.json {
 
 .toast p { margin: 0; flex: 1; font-size: 13px; white-space: pre-wrap; }
 
+.eq-card {
+  width: 280px;
+  pointer-events: none;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.eq-card strong { font-size: 15px; }
+
+.eq-card p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+.eq-card .kicker { margin: 0; }
+
+.eq-card p i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  margin-right: 6px;
+}
+
+.eq-card .eq-card-notes {
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.eq-card .eq-card-ip {
+  color: var(--cool);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
 .float-tag, .aisle-tag {
   pointer-events: none;
   background: var(--tag-bg);
