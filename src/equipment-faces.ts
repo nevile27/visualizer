@@ -160,15 +160,13 @@ function disks(count: number, x: number, y: number, led: string) {
   return out;
 }
 
-function panel(bg: string, accent: string, body: string, caption: string) {
+function panel(bg: string, body: string, caption: string) {
   const label = caption
     ? `<text x="612" y="30" text-anchor="end" fill="#e7eef6" font-family="Segoe UI, sans-serif" font-size="13" font-weight="700">${caption}</text>`
     : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="96" viewBox="0 0 640 48" preserveAspectRatio="none">
     <rect width="640" height="48" fill="${bg}"/>
-    <rect width="16" height="48" fill="${accent}"/>
-    <rect x="16" width="624" height="4" fill="${accent}"/>
-    <circle cx="28" cy="14" r="2.2" fill="#1a1f27"/><circle cx="28" cy="36" r="2.2" fill="#1a1f27"/>
+    <circle cx="14" cy="14" r="2.2" fill="#1a1f27"/><circle cx="14" cy="36" r="2.2" fill="#1a1f27"/>
     ${body}${label}
   </svg>`;
 }
@@ -177,67 +175,67 @@ function renderFace(match: FaceMatch) {
   const { face, caption } = match;
   switch (face) {
     case "dell-2u":
-      return panel("#5c6776", "#3ddea0", drives(8, 36, 10, 22, 28, "#3ddea0") + `<rect x="250" y="10" width="250" height="28" fill="#3e4856"/><path d="M260 18h230M260 26h230M260 34h230" stroke="#7d8b9e" stroke-width="2"/>`, caption);
+      return panel("#5c6776", drives(8, 36, 10, 22, 28, "#3ddea0") + `<rect x="250" y="10" width="250" height="28" fill="#3e4856"/><path d="M260 18h230M260 26h230M260 34h230" stroke="#7d8b9e" stroke-width="2"/>`, caption);
     case "dell-1u":
-      return panel("#5c6776", "#3ddea0", drives(4, 36, 12, 32, 24, "#3ddea0") + rj45(8, 200, 18, "#d5dee8"), caption);
+      return panel("#5c6776", drives(4, 36, 12, 32, 24, "#3ddea0") + rj45(8, 200, 18, "#d5dee8"), caption);
     case "hpe-2u":
-      return panel("#66707e", "#3aa0ff", drives(8, 36, 10, 22, 28, "#3aa0ff"), caption);
+      return panel("#66707e", drives(8, 36, 10, 22, 28, "#3aa0ff"), caption);
     case "hpe-1u":
-      return panel("#66707e", "#3aa0ff", drives(4, 36, 12, 36, 24, "#3aa0ff"), caption);
+      return panel("#66707e", drives(4, 36, 12, 36, 24, "#3aa0ff"), caption);
     case "ibm-2u":
-      return panel("#5a6270", "#e2a23a", drives(6, 36, 10, 28, 28, "#e2a23a"), caption);
+      return panel("#5a6270", drives(6, 36, 10, 28, 28, "#e2a23a"), caption);
     case "ibm-power":
-      return panel("#5a6270", "#e2a23a", drives(4, 36, 12, 40, 24, "#e2a23a") + `<rect x="230" y="12" width="170" height="24" rx="2" fill="#3e4856" stroke="#e2a23a"/>`, caption);
+      return panel("#5a6270", drives(4, 36, 12, 40, 24, "#e2a23a") + `<rect x="230" y="12" width="170" height="24" rx="2" fill="#3e4856" stroke="#e2a23a"/>`, caption);
     case "lenovo":
-      return panel("#5c6168", "#e10600", drives(8, 36, 10, 22, 28, "#e10600"), caption);
+      return panel("#5c6168", drives(8, 36, 10, 22, 28, "#e10600"), caption);
     case "nutanix":
-      return panel("#4d6278", "#49d6c5", drives(6, 36, 10, 30, 28, "#49d6c5"), caption);
+      return panel("#4d6278", drives(6, 36, 10, 30, 28, "#49d6c5"), caption);
     case "catalyst-24":
-      return panel("#596270", "#e2b34a", rj45(12, 36, 10, "#f2f5f8") + rj45(12, 36, 26, "#d5dde6") + qsfp(4, 200, 18, "#2a3848"), caption);
+      return panel("#596270", rj45(12, 36, 10, "#f2f5f8") + rj45(12, 36, 26, "#d5dde6") + qsfp(4, 200, 18, "#2a3848"), caption);
     case "catalyst-48":
-      return panel("#596270", "#e2b34a", rj45(18, 36, 8, "#f2f5f8") + rj45(18, 36, 26, "#d5dde6") + qsfp(4, 270, 18, "#2a3848"), caption);
+      return panel("#596270", rj45(18, 36, 8, "#f2f5f8") + rj45(18, 36, 26, "#d5dde6") + qsfp(4, 270, 18, "#2a3848"), caption);
     case "catalyst-chassis":
-      return panel("#596270", "#e2b34a", [0, 1, 2, 3].map((index) => `<rect x="${36 + index * 110}" y="10" width="96" height="28" rx="2" fill="#3e4856" stroke="#d5dde6"/>`).join(""), caption);
+      return panel("#596270", [0, 1, 2, 3].map((index) => `<rect x="${36 + index * 110}" y="10" width="96" height="28" rx="2" fill="#3e4856" stroke="#d5dde6"/>`).join(""), caption);
     case "nexus":
-      return panel("#4e5c6c", "#7fd4ee", qsfp(16, 36, 8, "#d7e6f2") + qsfp(16, 36, 26, "#b7c9da"), caption);
+      return panel("#4e5c6c", qsfp(16, 36, 8, "#d7e6f2") + qsfp(16, 36, 26, "#b7c9da"), caption);
     case "arista":
-      return panel("#4e635c", "#3ddea0", qsfp(14, 36, 8, "#d7eee4") + qsfp(14, 36, 26, "#b7d4c8"), caption);
+      return panel("#4e635c", qsfp(14, 36, 8, "#d7eee4") + qsfp(14, 36, 26, "#b7d4c8"), caption);
     case "fortinet":
-      return panel("#5a6574", "#e85d4c", rj45(10, 36, 10, "#f4f7fb") + rj45(10, 36, 26, "#d5dee8") + qsfp(4, 180, 18, "#2c3a48"), caption);
+      return panel("#5a6574", rj45(10, 36, 10, "#f4f7fb") + rj45(10, 36, 26, "#d5dee8") + qsfp(4, 180, 18, "#2c3a48"), caption);
     case "palo":
-      return panel("#6a5e50", "#f08a24", rj45(12, 36, 18, "#f6efe4") + qsfp(4, 200, 17, "#4a3c2c"), caption);
+      return panel("#6a5e50", rj45(12, 36, 18, "#f6efe4") + qsfp(4, 200, 17, "#4a3c2c"), caption);
     case "checkpoint":
-      return panel("#6a5558", "#e23b3b", rj45(10, 36, 18, "#f6e4e6") + qsfp(2, 180, 17, "#4a3034"), caption);
+      return panel("#6a5558", rj45(10, 36, 18, "#f6e4e6") + qsfp(2, 180, 17, "#4a3034"), caption);
     case "asa":
-      return panel("#566070", "#f0c14b", rj45(8, 36, 18, "#f4f7fb") + qsfp(4, 160, 17, "#2c3a48"), caption);
+      return panel("#566070", rj45(8, 36, 18, "#f4f7fb") + qsfp(4, 160, 17, "#2c3a48"), caption);
     case "netapp":
-      return panel("#4e6270", "#3aa0ff", disks(18, 44, 26, "#3aa0ff"), caption);
+      return panel("#4e6270", disks(18, 44, 26, "#3aa0ff"), caption);
     case "pure":
-      return panel("#6a5c48", "#f08a24", disks(16, 44, 26, "#f08a24"), caption);
+      return panel("#6a5c48", disks(16, 44, 26, "#f08a24"), caption);
     case "synology":
-      return panel("#5c6168", "#3ddea0", drives(4, 36, 10, 44, 28, "#3ddea0"), caption);
+      return panel("#5c6168", drives(4, 36, 10, 44, 28, "#3ddea0"), caption);
     case "ibm-shelf":
-      return panel("#566070", "#e2a23a", disks(20, 40, 26, "#e2a23a"), caption);
+      return panel("#566070", disks(20, 40, 26, "#e2a23a"), caption);
     case "tape":
-      return panel("#5c6572", "#d0d7e0", `<rect x="36" y="10" width="70" height="28" rx="3" fill="#3e4856" stroke="#f4f7fb"/><circle cx="71" cy="24" r="8" fill="none" stroke="#f4f7fb"/>`, caption);
+      return panel("#5c6572", `<rect x="36" y="10" width="70" height="28" rx="3" fill="#3e4856" stroke="#f4f7fb"/><circle cx="71" cy="24" r="8" fill="none" stroke="#f4f7fb"/>`, caption);
     case "pdu":
-      return panel("#4e555e", "#f0c14b", Array.from({ length: 10 }, (_, index) => `<circle cx="${48 + index * 28}" cy="26" r="8" fill="#2a313a" stroke="#f4f7fb" stroke-width="2"/>`).join(""), caption);
+      return panel("#4e555e", Array.from({ length: 10 }, (_, index) => `<circle cx="${48 + index * 28}" cy="26" r="8" fill="#2a313a" stroke="#f4f7fb" stroke-width="2"/>`).join(""), caption);
     case "patch":
-      return panel("#526070", "#7fd4ee", Array.from({ length: 16 }, (_, index) => `<rect x="${36 + index * 22}" y="14" width="8" height="20" rx="1" fill="#3aa0ff"/><rect x="${46 + index * 22}" y="14" width="8" height="20" rx="1" fill="#3ddea0"/>`).join(""), caption);
+      return panel("#526070", Array.from({ length: 16 }, (_, index) => `<rect x="${36 + index * 22}" y="14" width="8" height="20" rx="1" fill="#3aa0ff"/><rect x="${46 + index * 22}" y="14" width="8" height="20" rx="1" fill="#3ddea0"/>`).join(""), caption);
     case "router":
-      return panel("#5a6572", "#f39a4a", qsfp(6, 36, 18, "#d7e2ee") + rj45(4, 150, 18, "#f4f7fb"), caption);
+      return panel("#5a6572", qsfp(6, 36, 18, "#d7e2ee") + rj45(4, 150, 18, "#f4f7fb"), caption);
     case "server":
-      return panel("#5c6776", "#3ddea0", drives(6, 36, 10, 30, 28, "#3ddea0"), "");
+      return panel("#5c6776", drives(6, 36, 10, 30, 28, "#3ddea0"), "");
     case "switch":
-      return panel("#596270", "#f0c14b", rj45(16, 36, 8, "#f2f5f8") + rj45(16, 36, 26, "#d5dde6"), "");
+      return panel("#596270", rj45(16, 36, 8, "#f2f5f8") + rj45(16, 36, 26, "#d5dde6"), "");
     case "firewall":
-      return panel("#6a5a5e", "#f07178", rj45(8, 36, 18, "#f6e4e6") + qsfp(2, 160, 17, "#4a3034"), "");
+      return panel("#6a5a5e", rj45(8, 36, 18, "#f6e4e6") + qsfp(2, 160, 17, "#4a3034"), "");
     case "storage":
-      return panel("#56507a", "#b3a6ff", disks(16, 44, 26, "#d5ccff"), "");
+      return panel("#56507a", disks(16, 44, 26, "#d5ccff"), "");
     case "blank":
-      return panel("#6a7380", "#8b97a6", `<rect x="36" y="16" width="500" height="16" fill="#55606e"/>`, "");
+      return panel("#6a7380", `<rect x="36" y="16" width="500" height="16" fill="#55606e"/>`, "");
     default:
-      return panel("#6a7380", "#c5d0dc", `<rect x="36" y="16" width="360" height="16" rx="2" fill="#55606e"/>`, "");
+      return panel("#6a7380", `<rect x="36" y="16" width="360" height="16" rx="2" fill="#55606e"/>`, "");
   }
 }
 

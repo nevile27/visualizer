@@ -266,8 +266,8 @@ function Gear({
 }) {
   const { select } = useStore();
   const texture = useFaceTexture(equipmentFaceUrl(equipment));
-  const meta = typeMeta(equipment.type);
   const turn = face > 0 ? 0 : Math.PI;
+  const width = RACK_W * 0.84;
   return (
     <group
       position={[0, y, doorZ + face * 0.02]}
@@ -277,18 +277,18 @@ function Gear({
       }}
     >
       <mesh>
-        <boxGeometry args={[RACK_W * 0.84, h, 0.04]} />
-        <meshStandardMaterial color={meta.color} emissive={meta.color} emissiveIntensity={0.55} />
+        <boxGeometry args={[width, h, 0.04]} />
+        <meshStandardMaterial color="#3a4450" metalness={0.35} roughness={0.55} />
       </mesh>
       {hot ? (
         <mesh position={[0, 0, face * 0.016]} rotation={[0, turn, 0]}>
-          <planeGeometry args={[RACK_W * 0.76, h + 0.012]} />
+          <planeGeometry args={[width + 0.012, h + 0.01]} />
           <meshBasicMaterial color="#3ddea0" toneMapped={false} />
         </mesh>
       ) : null}
       {texture ? (
         <mesh position={[0, 0, face * 0.024]} rotation={[0, turn, 0]}>
-          <planeGeometry args={[RACK_W * 0.82, Math.max(0.012, h * 0.96)]} />
+          <planeGeometry args={[width, h]} />
           <meshBasicMaterial map={texture} toneMapped={false} />
         </mesh>
       ) : null}
