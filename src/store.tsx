@@ -40,11 +40,13 @@ interface State {
   activeDcId: string | null;
   selection: Selection | null;
   view: ViewMode;
+  query: string;
   notice: string | null;
 }
 
 type Action =
-  | { type: "select"; selection: Selection | null }
+  | { type: "select"; selection: Selection | null; keepQuery?: boolean }
+  | { type: "set-query"; query: string }
   | { type: "set-view"; view: ViewMode }
   | { type: "set-active"; id: string }
   | { type: "notice"; notice: string | null }
@@ -87,11 +89,13 @@ function selectionOnItem(selection: Selection | null, itemId: string) {
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "select":
-      return { ...state, selection: action.selection };
+      return { ...state, selection: action.selection, query: action.keepQuery ? state.query : "" };
+    case "set-query":
+      return { ...state, query: action.query };
     case "set-view":
       return { ...state, view: action.view };
     case "set-active":
-      return { ...state, activeDcId: action.id, selection: null };
+      return { ...state, activeDcId: action.id, selection: null, query: "" };
     case "notice":
       return { ...state, notice: action.notice };
     case "hydrate": {
@@ -271,6 +275,7 @@ function init(): State {
     activeDcId: null,
     selection: null,
     view: "3d",
+    query: "",
     notice: null,
   };
 }
@@ -281,7 +286,8 @@ interface StoreValue extends State {
   activeDc: DataCenter | null;
   setView: (view: ViewMode) => void;
   setActive: (id: string) => void;
-  select: (selection: Selection | null) => void;
+  select: (selection: Selection | null, options?: { keepQuery?: boolean }) => void;
+  setQuery: (query: string) => void;
   notify: (notice: string | null) => void;
   replaceAll: (dataCenters: DataCenter[]) => void;
   addGenerated: (dc: DataCenter) => void;
@@ -384,7 +390,8 @@ export function StoreProvider({ children, canEdit }: { children: ReactNode; canE
       activeDc,
       setView: (view) => dispatch({ type: "set-view", view }),
       setActive: (id) => dispatch({ type: "set-active", id }),
-      select: (selection) => dispatch({ type: "select", selection }),
+      select: (selection, options) => dispatch({ type: "select", selection, keepQuery: options?.keepQuery }),
+      setQuery: (query) => dispatch({ type: "set-query", query }),
       notify: (notice) => dispatch({ type: "notice", notice }),
       replaceAll: (dataCenters) => {
         if (canEdit) dispatch({ type: "replace", dataCenters });

@@ -31,8 +31,7 @@ function uniqueEquipment(dc: DataCenter, needle: string): Extract<Selection, { k
 }
 
 export function Sidebar() {
-  const { activeDc, selection, select } = useStore();
-  const [query, setQuery] = useState("");
+  const { activeDc, selection, select, query, setQuery } = useStore();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const needle = query.trim().toLowerCase();
 
@@ -53,7 +52,7 @@ export function Sidebar() {
       selection.itemId === hit.itemId &&
       selection.equipmentId === hit.equipmentId
     ) return;
-    select(hit);
+    select(hit, { keepQuery: true });
   }, [activeDc, needle, selection, select]);
 
   if (!activeDc) {

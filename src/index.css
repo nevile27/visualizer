@@ -599,6 +599,13 @@ textarea { min-height: 68px; resize: vertical; }
   z-index: 1;
 }
 
+.eq-block span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
 .eq-block.active { outline: 2px solid var(--eq-outline); outline-offset: -2px; }
 
 .ghost-block { z-index: 0; cursor: default; }

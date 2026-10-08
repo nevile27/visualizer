@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
+import { equipmentFaceUrl } from "../equipment-faces";
 import { placementError } from "../model";
 import type { Equipment, Rack } from "../types";
-import { typeMeta } from "../model";
 
 const ROW = 15;
 
@@ -61,8 +61,8 @@ function EquipmentBlock({
   active: boolean;
   onPick: (id: string) => void;
 }) {
-  const meta = typeMeta(eq.type);
   const topU = eq.positionU + eq.heightU - 1;
+  const face = equipmentFaceUrl(eq);
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -75,8 +75,9 @@ function EquipmentBlock({
       style={{
         top: (rack.heightU - topU) * ROW + 1,
         height: eq.heightU * ROW - 2,
-        background: meta.color,
-        color: meta.ink,
+        backgroundImage: `linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.12) 46%, rgba(0,0,0,.2)), url("${face}")`,
+        backgroundSize: "100% 100%",
+        color: "#f4f7fb",
         boxShadow: `inset 3px 0 0 ${eq.status === "ok" ? "transparent" : eq.status === "warning" ? "#8a6a10" : eq.status === "critical" ? "#8d1d28" : "#245968"}`,
       }}
       onClick={(event) => {

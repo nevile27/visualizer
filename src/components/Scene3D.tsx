@@ -1,8 +1,9 @@
 import { OrbitControls, ContactShadows, Edges, Grid, Html } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Component, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { Component, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import type { MeshStandardMaterial } from "three";
+import { SRGBColorSpace, TextureLoader, type MeshStandardMaterial, type Texture } from "three";
+import { equipmentFaceUrl } from "../equipment-faces";
 import { downloadUrl } from "../download";
 import { maxPosition, positionDirection, safeFileName, slotFromLeft, statusMeta, typeMeta, uRange, worstStatus } from "../model";
 import { useCanEdit } from "../auth-context";
@@ -171,30 +172,86 @@ function Cabinet({
         const uH = usable / item.heightU;
         const h = Math.max(0.012, eq.heightU * uH * 0.82);
         const y = BASE + 0.07 + (eq.positionU - 1) * uH + (eq.heightU * uH) / 2;
-        const meta = typeMeta(eq.type);
-        const hot = selectedEquipmentId === eq.id;
         return (
-          <mesh
+          <Gear
             key={eq.id}
-            position={[0, y, doorZ + face * 0.02]}
-            onClick={(event) => {
-              event.stopPropagation();
-              select({ kind: "equipment", aisleId, itemId: item.id, equipmentId: eq.id });
-            }}
-          >
-            <boxGeometry args={[RACK_W * 0.72, h, 0.04]} />
-            <meshStandardMaterial color={meta.color} emissive={meta.color} emissiveIntensity={hot ? 0.65 : 0.12} />
-            {hot ? (
-              <Html position={[face * 0.55, 0, face * 0.06]} zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
-                <EquipmentCard equipment={eq} rackName={item.name} />
-              </Html>
-            ) : null}
-          </mesh>
+            equipment={eq}
+            rackName={item.name}
+            aisleId={aisleId}
+            itemId={item.id}
+            y={y}
+            h={h}
+            face={face}
+            doorZ={doorZ}
+            hot={selectedEquipmentId === eq.id}
+          />
         );
       })}
       {selected && !selectedEquipmentId ? (
         <Html position={[0, BASE + RACK_H + 0.18, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
           <div className="float-tag">{item.name}</div>
+        </Html>
+      ) : null}
+    </group>
+  );
+}
+
+function Gear({
+  equipment,
+  rackName,
+  aisleId,
+  itemId,
+  y,
+  h,
+  face,
+  doorZ,
+  hot,
+}: {
+  equipment: Equipment;
+  rackName: string;
+  aisleId: string;
+  itemId: string;
+  y: number;
+  h: number;
+  face: number;
+  doorZ: number;
+  hot: boolean;
+}) {
+  const { select } = useStore();
+  const texture = useLoader(TextureLoader, equipmentFaceUrl(equipment));
+  useLayoutEffect(() => {
+    const map = texture as Texture;
+    if (map.colorSpace !== SRGBColorSpace) {
+      map.colorSpace = SRGBColorSpace;
+      map.needsUpdate = true;
+    }
+  }, [texture]);
+  const turn = face > 0 ? 0 : Math.PI;
+  return (
+    <group
+      position={[0, y, doorZ + face * 0.02]}
+      onClick={(event) => {
+        event.stopPropagation();
+        select({ kind: "equipment", aisleId, itemId, equipmentId: equipment.id });
+      }}
+    >
+      <mesh>
+        <boxGeometry args={[RACK_W * 0.72, h, 0.02]} />
+        <meshStandardMaterial color="#101418" />
+      </mesh>
+      {hot ? (
+        <mesh position={[0, 0, face * 0.012]} rotation={[0, turn, 0]}>
+          <planeGeometry args={[RACK_W * 0.76, h + 0.012]} />
+          <meshBasicMaterial color="#3ddea0" toneMapped={false} />
+        </mesh>
+      ) : null}
+      <mesh position={[0, 0, face * 0.016]} rotation={[0, turn, 0]}>
+        <planeGeometry args={[RACK_W * 0.7, Math.max(0.01, h * 0.92)]} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {hot ? (
+        <Html position={[face * 0.55, 0, face * 0.06]} zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
+          <EquipmentCard equipment={equipment} rackName={rackName} />
         </Html>
       ) : null}
     </group>
