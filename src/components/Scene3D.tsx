@@ -1,8 +1,8 @@
 import { OrbitControls, ContactShadows, Edges, Grid, Html } from "@react-three/drei";
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
-import { Component, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Component, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { SRGBColorSpace, TextureLoader, type MeshStandardMaterial, type Texture } from "three";
+import { CanvasTexture, SRGBColorSpace, type MeshStandardMaterial } from "three";
 import { equipmentFaceUrl } from "../equipment-faces";
 import { downloadUrl } from "../download";
 import { maxPosition, positionDirection, safeFileName, slotFromLeft, statusMeta, typeMeta, uRange, worstStatus } from "../model";
@@ -142,20 +142,22 @@ function Cabinet({
     >
       <mesh position={[0, BASE / 2, 0]}>
         <boxGeometry args={[RACK_W + 0.06, BASE, RACK_D + 0.06]} />
-        <meshStandardMaterial color="#0c1117" />
+        <meshStandardMaterial color="#4a5564" />
       </mesh>
-      <mesh position={[0, BASE + RACK_H / 2, 0]}>
-        <boxGeometry args={[RACK_W, RACK_H, RACK_D]} />
-        <meshStandardMaterial
-          color={selected ? "#245c49" : cooling ? "#1a6278" : hovered ? "#31475f" : "#2a3c50"}
-          metalness={0.48}
-          roughness={0.46}
-        />
+      {([[-1, -1], [1, -1], [-1, 1], [1, 1]] as const).map(([sx, sz]) => (
+        <mesh key={`${sx}${sz}`} position={[sx * (RACK_W / 2 - 0.018), BASE + RACK_H / 2, sz * (RACK_D / 2 - 0.018)]}>
+          <boxGeometry args={[0.036, RACK_H, 0.036]} />
+          <meshStandardMaterial color={selected ? "#2f6d57" : cooling ? "#2a6d80" : hovered ? "#617086" : "#7d8b9c"} metalness={0.35} roughness={0.42} />
+        </mesh>
+      ))}
+      <mesh position={[0, BASE + RACK_H - 0.02, 0]}>
+        <boxGeometry args={[RACK_W, 0.04, RACK_D]} />
+        <meshStandardMaterial color={selected ? "#2f6d57" : "#8b98a8"} metalness={0.3} roughness={0.45} />
         {selected ? <Edges color="#3ddea0" /> : null}
       </mesh>
-      <mesh position={[0, BASE + RACK_H / 2, doorZ]}>
-        <boxGeometry args={[RACK_W - 0.05, RACK_H - 0.08, 0.02]} />
-        <meshStandardMaterial color={cooling ? "#1d6278" : "#2c3b4d"} metalness={0.25} roughness={0.4} />
+      <mesh position={[0, BASE + RACK_H / 2, -face * (RACK_D / 2 - 0.02)]}>
+        <boxGeometry args={[RACK_W - 0.08, RACK_H - 0.1, 0.015]} />
+        <meshStandardMaterial color={cooling ? "#2a6d80" : "#9aa8b8"} metalness={0.2} roughness={0.55} />
       </mesh>
       <mesh position={[face * (RACK_W * 0.28), BASE + RACK_H * 0.45, doorZ + face * 0.018]}>
         <boxGeometry args={[0.015, 0.14, 0.015]} />
@@ -170,21 +172,29 @@ function Cabinet({
       )) : item.equipment.map((eq) => {
         const usable = RACK_H - 0.14;
         const uH = usable / item.heightU;
-        const h = Math.max(0.012, eq.heightU * uH * 0.82);
+        const h = Math.max(0.014, eq.heightU * uH * 0.94);
         const y = BASE + 0.07 + (eq.positionU - 1) * uH + (eq.heightU * uH) / 2;
+        const band = typeMeta(eq.type).color;
         return (
-          <Gear
-            key={eq.id}
-            equipment={eq}
-            rackName={item.name}
-            aisleId={aisleId}
-            itemId={item.id}
-            y={y}
-            h={h}
-            face={face}
-            doorZ={doorZ}
-            hot={selectedEquipmentId === eq.id}
-          />
+          <group key={eq.id}>
+            <Gear
+              equipment={eq}
+              rackName={item.name}
+              aisleId={aisleId}
+              itemId={item.id}
+              y={y}
+              h={h}
+              face={face}
+              doorZ={doorZ}
+              hot={selectedEquipmentId === eq.id}
+            />
+            {([-1, 1] as const).map((side) => (
+              <mesh key={side} position={[side * (RACK_W / 2 + 0.008), y, 0]}>
+                <boxGeometry args={[0.016, h, RACK_D * 0.72]} />
+                <meshStandardMaterial color={band} emissive={band} emissiveIntensity={0.55} />
+              </mesh>
+            ))}
+          </group>
         );
       })}
       {selected && !selectedEquipmentId ? (
@@ -194,6 +204,41 @@ function Cabinet({
       ) : null}
     </group>
   );
+}
+
+const faceTextures = new Map<string, CanvasTexture>();
+
+function useFaceTexture(url: string) {
+  const [texture, setTexture] = useState<CanvasTexture | null>(() => faceTextures.get(url) ?? null);
+  useEffect(() => {
+    const cached = faceTextures.get(url);
+    if (cached) {
+      setTexture(cached);
+      return;
+    }
+    let cancel = false;
+    const image = new Image();
+    image.onload = () => {
+      if (cancel) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 96;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const map = new CanvasTexture(canvas);
+      map.colorSpace = SRGBColorSpace;
+      map.anisotropy = 8;
+      map.needsUpdate = true;
+      faceTextures.set(url, map);
+      setTexture(map);
+    };
+    image.src = url;
+    return () => {
+      cancel = true;
+    };
+  }, [url]);
+  return texture;
 }
 
 function Gear({
@@ -218,14 +263,8 @@ function Gear({
   hot: boolean;
 }) {
   const { select } = useStore();
-  const texture = useLoader(TextureLoader, equipmentFaceUrl(equipment));
-  useLayoutEffect(() => {
-    const map = texture as Texture;
-    if (map.colorSpace !== SRGBColorSpace) {
-      map.colorSpace = SRGBColorSpace;
-      map.needsUpdate = true;
-    }
-  }, [texture]);
+  const texture = useFaceTexture(equipmentFaceUrl(equipment));
+  const meta = typeMeta(equipment.type);
   const turn = face > 0 ? 0 : Math.PI;
   return (
     <group
@@ -236,19 +275,21 @@ function Gear({
       }}
     >
       <mesh>
-        <boxGeometry args={[RACK_W * 0.72, h, 0.02]} />
-        <meshStandardMaterial color="#101418" />
+        <boxGeometry args={[RACK_W * 0.84, h, 0.04]} />
+        <meshStandardMaterial color={meta.color} emissive={meta.color} emissiveIntensity={0.55} />
       </mesh>
       {hot ? (
-        <mesh position={[0, 0, face * 0.012]} rotation={[0, turn, 0]}>
+        <mesh position={[0, 0, face * 0.016]} rotation={[0, turn, 0]}>
           <planeGeometry args={[RACK_W * 0.76, h + 0.012]} />
           <meshBasicMaterial color="#3ddea0" toneMapped={false} />
         </mesh>
       ) : null}
-      <mesh position={[0, 0, face * 0.016]} rotation={[0, turn, 0]}>
-        <planeGeometry args={[RACK_W * 0.7, Math.max(0.01, h * 0.92)]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
-      </mesh>
+      {texture ? (
+        <mesh position={[0, 0, face * 0.024]} rotation={[0, turn, 0]}>
+          <planeGeometry args={[RACK_W * 0.82, Math.max(0.012, h * 0.96)]} />
+          <meshBasicMaterial map={texture} toneMapped={false} />
+        </mesh>
+      ) : null}
       {hot ? (
         <Html position={[face * 0.55, 0, face * 0.06]} zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
           <EquipmentCard equipment={equipment} rackName={rackName} />
