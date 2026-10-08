@@ -142,24 +142,34 @@ function Cabinet({
     >
       <mesh position={[0, BASE / 2, 0]}>
         <boxGeometry args={[RACK_W + 0.06, BASE, RACK_D + 0.06]} />
-        <meshStandardMaterial color="#4a5564" />
+        <meshStandardMaterial color="#3a4452" />
       </mesh>
-      {([[-1, -1], [1, -1], [-1, 1], [1, 1]] as const).map(([sx, sz]) => (
-        <mesh key={`${sx}${sz}`} position={[sx * (RACK_W / 2 - 0.018), BASE + RACK_H / 2, sz * (RACK_D / 2 - 0.018)]}>
-          <boxGeometry args={[0.036, RACK_H, 0.036]} />
-          <meshStandardMaterial color={selected ? "#2f6d57" : cooling ? "#2a6d80" : hovered ? "#617086" : "#7d8b9c"} metalness={0.35} roughness={0.42} />
+      {cooling ? (
+        <mesh position={[0, BASE + RACK_H / 2, 0]}>
+          <boxGeometry args={[RACK_W, RACK_H, RACK_D]} />
+          <meshStandardMaterial color={selected ? "#245c49" : hovered ? "#1f7590" : "#1a6278"} metalness={0.42} roughness={0.46} />
+          {selected ? <Edges color="#3ddea0" /> : null}
         </mesh>
-      ))}
-      <mesh position={[0, BASE + RACK_H - 0.02, 0]}>
-        <boxGeometry args={[RACK_W, 0.04, RACK_D]} />
-        <meshStandardMaterial color={selected ? "#2f6d57" : "#8b98a8"} metalness={0.3} roughness={0.45} />
-        {selected ? <Edges color="#3ddea0" /> : null}
-      </mesh>
-      <mesh position={[0, BASE + RACK_H / 2, -face * (RACK_D / 2 - 0.02)]}>
-        <boxGeometry args={[RACK_W - 0.08, RACK_H - 0.1, 0.015]} />
-        <meshStandardMaterial color={cooling ? "#2a6d80" : "#9aa8b8"} metalness={0.2} roughness={0.55} />
-      </mesh>
-      <mesh position={[face * (RACK_W * 0.28), BASE + RACK_H * 0.45, doorZ + face * 0.018]}>
+      ) : (
+        <>
+          {([-1, 1] as const).map((side) => (
+            <mesh key={side} position={[side * (RACK_W / 2 - 0.012), BASE + RACK_H / 2, 0]}>
+              <boxGeometry args={[0.03, RACK_H, RACK_D]} />
+              <meshStandardMaterial color={selected ? "#2f6d57" : hovered ? "#617086" : "#5c6b7c"} metalness={0.4} roughness={0.42} />
+            </mesh>
+          ))}
+          <mesh position={[0, BASE + RACK_H - 0.02, 0]}>
+            <boxGeometry args={[RACK_W, 0.04, RACK_D]} />
+            <meshStandardMaterial color={selected ? "#2f6d57" : "#6d7c8e"} metalness={0.35} roughness={0.45} />
+            {selected ? <Edges color="#3ddea0" /> : null}
+          </mesh>
+          <mesh position={[0, BASE + RACK_H / 2, -face * (RACK_D / 2 - 0.015)]}>
+            <boxGeometry args={[RACK_W - 0.04, RACK_H - 0.08, 0.02]} />
+            <meshStandardMaterial color="#4e5b6b" metalness={0.3} roughness={0.5} />
+          </mesh>
+        </>
+      )}
+      <mesh position={[face * (RACK_W * 0.28), BASE + RACK_H * 0.45, doorZ + face * 0.02]}>
         <boxGeometry args={[0.015, 0.14, 0.015]} />
         <meshStandardMaterial color="#c5d2e0" metalness={0.8} roughness={0.25} />
       </mesh>
@@ -174,27 +184,19 @@ function Cabinet({
         const uH = usable / item.heightU;
         const h = Math.max(0.014, eq.heightU * uH * 0.94);
         const y = BASE + 0.07 + (eq.positionU - 1) * uH + (eq.heightU * uH) / 2;
-        const band = typeMeta(eq.type).color;
         return (
-          <group key={eq.id}>
-            <Gear
-              equipment={eq}
-              rackName={item.name}
-              aisleId={aisleId}
-              itemId={item.id}
-              y={y}
-              h={h}
-              face={face}
-              doorZ={doorZ}
-              hot={selectedEquipmentId === eq.id}
-            />
-            {([-1, 1] as const).map((side) => (
-              <mesh key={side} position={[side * (RACK_W / 2 + 0.008), y, 0]}>
-                <boxGeometry args={[0.016, h, RACK_D * 0.72]} />
-                <meshStandardMaterial color={band} emissive={band} emissiveIntensity={0.55} />
-              </mesh>
-            ))}
-          </group>
+          <Gear
+            key={eq.id}
+            equipment={eq}
+            rackName={item.name}
+            aisleId={aisleId}
+            itemId={item.id}
+            y={y}
+            h={h}
+            face={face}
+            doorZ={doorZ}
+            hot={selectedEquipmentId === eq.id}
+          />
         );
       })}
       {selected && !selectedEquipmentId ? (
