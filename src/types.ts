@@ -30,6 +30,14 @@ export interface Equipment {
   heightU: number;
   powerW: number;
   status: EquipmentStatus;
+  /** Adresse IP de gestion, vide si inconnue. */
+  ip: string;
+  /** Rôle de l'équipement, tel que la colonne Observations de l'inventaire. */
+  observations: string;
+  /** Nombre d'alimentations, 0 si inconnu. */
+  psuCount: number;
+  /** Nombre de ports réseau, 0 si inconnu. */
+  networkPorts: number;
   notes: string;
 }
 

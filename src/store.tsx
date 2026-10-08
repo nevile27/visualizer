@@ -3,6 +3,7 @@ import { fetchCenters, saveCenters } from "./api";
 import {
   defaultRackHeight,
   nextPosition,
+  normalizeCenters,
   suggestCoolingName,
   suggestRackName,
   uid,
@@ -21,6 +22,15 @@ import type {
 } from "./types";
 
 const STORAGE_KEY = "hallplan-v1";
+
+function equipmentNeedsFields(centers: DataCenter[]) {
+  return centers.some((dc) => dc.aisles.some((aisle) => aisle.items.some((item) => (
+    item.kind === "rack" && item.equipment.some((equipment) => {
+      const raw = equipment as Partial<Pick<Equipment, "ip" | "observations" | "psuCount" | "networkPorts">>;
+      return raw.ip === undefined || raw.observations === undefined || raw.psuCount === undefined || raw.networkPorts === undefined;
+    })
+  ))));
+}
 
 type RackPatch = Partial<Pick<Rack, "name" | "side" | "position" | "heightU" | "notes">>;
 type CoolingPatch = Partial<Pick<CoolingUnit, "name" | "side" | "position" | "coolingType" | "capacityKw" | "status" | "notes">>;
@@ -303,13 +313,22 @@ export function StoreProvider({ children, canEdit }: { children: ReactNode; canE
       try {
         const remote = await fetchCenters();
         if (cancel) return;
-        let centers = remote.dataCenters;
+        const centersNeedFields = equipmentNeedsFields(remote.dataCenters);
+        let centers = normalizeCenters(remote.dataCenters);
         let nextRevision = remote.revision;
+        if (canEdit && centersNeedFields) {
+          const upgraded = await saveCenters(nextRevision, centers);
+          if (cancel) return;
+          if (!upgraded.conflict) {
+            centers = upgraded.dataCenters;
+            nextRevision = upgraded.revision;
+          }
+        }
         if (centers.length === 0 && canEdit) {
           const local = readLocalCenters();
           const count = local?.length ?? 0;
           if (local && count > 0 && window.confirm(`Ce navigateur contient ${count} centre${count > 1 ? "s" : ""} enregistré${count > 1 ? "s" : ""} seulement ici. Les copier sur le serveur pour les partager avec les autres machines ?`)) {
-            const saved = await saveCenters(nextRevision, local);
+            const saved = await saveCenters(nextRevision, normalizeCenters(local));
             if (cancel) return;
             centers = saved.dataCenters;
             nextRevision = saved.revision;

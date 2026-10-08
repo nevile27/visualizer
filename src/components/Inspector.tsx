@@ -523,7 +523,7 @@ function RackPanel({ aisle, rack }: { aisle: Aisle; rack: Rack }) {
             onAdvance={(positionU, heightU) => {
               const virtual: Rack = {
                 ...rack,
-                equipment: [...rack.equipment, { id: "pending", name: "", type: "server", manufacturer: "", model: "", serial: "", assetTag: "", positionU, heightU, powerW: 0, status: "ok", notes: "" }],
+                equipment: [...rack.equipment, { id: "pending", name: "", type: "server", manufacturer: "", model: "", serial: "", assetTag: "", positionU, heightU, powerW: 0, status: "ok", ip: "", observations: "", psuCount: 0, networkPorts: 0, notes: "" }],
               };
               const next = nextFreeU(virtual, heightU, positionU + heightU);
               if (next) setSeedU(next);

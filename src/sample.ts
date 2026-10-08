@@ -1,6 +1,6 @@
 import type { CoolingUnit, DataCenter, Equipment, EquipmentStatus, Rack, Side } from "./types";
 
-function equipment(partial: Omit<Equipment, "manufacturer" | "model" | "serial" | "assetTag" | "powerW" | "status" | "notes"> & Partial<Equipment>): Equipment {
+function equipment(partial: Omit<Equipment, "manufacturer" | "model" | "serial" | "assetTag" | "powerW" | "status" | "notes" | "ip" | "observations" | "psuCount" | "networkPorts"> & Partial<Equipment>): Equipment {
   return {
     manufacturer: "",
     model: "",
@@ -8,6 +8,10 @@ function equipment(partial: Omit<Equipment, "manufacturer" | "model" | "serial" 
     assetTag: "",
     powerW: 0,
     status: "ok",
+    ip: "",
+    observations: "",
+    psuCount: 0,
+    networkPorts: 0,
     notes: "",
     ...partial,
   };

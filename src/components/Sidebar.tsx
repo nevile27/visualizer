@@ -6,7 +6,7 @@ import type { AisleItem } from "../types";
 function itemMatches(item: AisleItem, query: string) {
   if (!query) return true;
   const extra = item.kind === "rack"
-    ? item.equipment.map((eq) => `${eq.name} ${eq.manufacturer} ${eq.model} ${eq.assetTag} ${eq.serial}`).join(" ")
+    ? item.equipment.map((eq) => `${eq.name} ${eq.manufacturer} ${eq.model} ${eq.assetTag} ${eq.serial} ${eq.ip} ${eq.observations} ${eq.notes}`).join(" ")
     : item.coolingType;
   return `${item.name} ${extra}`.toLowerCase().includes(query);
 }

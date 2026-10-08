@@ -35,6 +35,10 @@ export function EquipmentForm({
   const [heightU, setHeightU] = useState(String(equipment?.heightU ?? 2));
   const [powerW, setPowerW] = useState(String(equipment?.powerW ?? 0));
   const [status, setStatus] = useState<EquipmentStatus>(equipment?.status ?? "ok");
+  const [ip, setIp] = useState(equipment?.ip ?? "");
+  const [observations, setObservations] = useState(equipment?.observations ?? "");
+  const [psuCount, setPsuCount] = useState(String(equipment?.psuCount ?? 0));
+  const [networkPorts, setNetworkPorts] = useState(String(equipment?.networkPorts ?? 0));
   const [notes, setNotes] = useState(equipment?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +66,12 @@ export function EquipmentForm({
       setError("La puissance doit être un nombre de watts positif ou nul.");
       return null;
     }
+    const supplies = Number(psuCount);
+    const ports = Number(networkPorts);
+    if (!Number.isInteger(supplies) || supplies < 0 || !Number.isInteger(ports) || ports < 0) {
+      setError("Le nombre d'alimentations et de ports doit être un entier positif ou nul.");
+      return null;
+    }
     setError(null);
     return {
       name: name.trim(),
@@ -74,6 +84,10 @@ export function EquipmentForm({
       heightU: height,
       powerW: Math.round(power),
       status,
+      ip: ip.trim(),
+      observations: observations.trim(),
+      psuCount: supplies,
+      networkPorts: ports,
       notes: notes.trim(),
     };
   }
@@ -92,6 +106,11 @@ export function EquipmentForm({
         }
         addEquipment(aisleId, rack.id, next);
         setName("");
+        setIp("");
+        setObservations("");
+        setPsuCount("0");
+        setNetworkPorts("0");
+        setNotes("");
         onAdvance(next.positionU, next.heightU);
       }}
     >
@@ -129,8 +148,20 @@ export function EquipmentForm({
       <Field label="Hauteur (U)">
         <NumberInput disabled={readOnly} value={heightU} min={1} max={rack.heightU} onChange={setHeightU} />
       </Field>
-      <Field label="Puissance (W)" className="span-2">
+      <Field label="Puissance (W)">
         <NumberInput disabled={readOnly} value={powerW} min={0} step={10} onChange={setPowerW} />
+      </Field>
+      <Field label="Adresse IP">
+        <TextInput disabled={readOnly} value={ip} onChange={setIp} placeholder="172.16.0.10" />
+      </Field>
+      <Field label="Alimentations">
+        <NumberInput disabled={readOnly} value={psuCount} min={0} onChange={setPsuCount} />
+      </Field>
+      <Field label="Ports réseau">
+        <NumberInput disabled={readOnly} value={networkPorts} min={0} onChange={setNetworkPorts} />
+      </Field>
+      <Field label="Observations" className="span-2" hint="Rôle de l'équipement.">
+        <textarea disabled={readOnly} value={observations} onChange={(event) => setObservations(event.target.value)} />
       </Field>
       <Field label="Notes" className="span-2">
         <textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} />

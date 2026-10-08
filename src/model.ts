@@ -125,6 +125,71 @@ export function formatKwFromW(watts: number) {
   return `${(watts / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kW`;
 }
 
+export function splitLegacyEquipmentNotes(notes: string) {
+  const observations: string[] = [];
+  const leftovers: string[] = [];
+  let ip = "";
+  let psuCount = 0;
+  let networkPorts = 0;
+  for (const line of notes.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean)) {
+    const labeled = line.match(/^(?:ip|adresse ip)\s*:?\s*(.+)$/i);
+    if (labeled) {
+      if (!ip) ip = labeled[1].trim();
+      continue;
+    }
+    const psu = line.match(/^(\d+)\s+alimentations?$/i);
+    if (psu) {
+      psuCount = Number(psu[1]);
+      continue;
+    }
+    const ports = line.match(/^(\d+)\s+ports?(?:\s+réseau)?$/i);
+    if (ports) {
+      networkPorts = Number(ports[1]);
+      continue;
+    }
+    if (/^statut\s*:/i.test(line)) {
+      leftovers.push(line);
+      continue;
+    }
+    observations.push(line);
+    if (!ip) {
+      const address = line.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+      if (address) ip = address[0];
+    }
+  }
+  return { ip, observations: observations.join("\n"), psuCount, networkPorts, notes: leftovers.join("\n") };
+}
+
+export function normalizeEquipment(equipment: Equipment): Equipment {
+  const raw = equipment as Partial<Pick<Equipment, "ip" | "observations" | "psuCount" | "networkPorts" | "notes">>;
+  const structured = raw.ip !== undefined || raw.observations !== undefined || raw.psuCount !== undefined || raw.networkPorts !== undefined;
+  if (structured) {
+    return {
+      ...equipment,
+      ip: raw.ip ?? "",
+      observations: raw.observations ?? "",
+      psuCount: raw.psuCount ?? 0,
+      networkPorts: raw.networkPorts ?? 0,
+      notes: raw.notes ?? "",
+    };
+  }
+  return { ...equipment, ...splitLegacyEquipmentNotes(raw.notes ?? "") };
+}
+
+export function normalizeCenters(centers: DataCenter[]): DataCenter[] {
+  return centers.map((dc) => ({
+    ...dc,
+    aisles: dc.aisles.map((aisle) => ({
+      ...aisle,
+      items: aisle.items.map((item) => (
+        item.kind === "rack"
+          ? { ...item, equipment: item.equipment.map((equipment) => normalizeEquipment(equipment)) }
+          : item
+      )),
+    })),
+  }));
+}
+
 export function uRange(eq: Pick<Equipment, "positionU" | "heightU">) {
   if (eq.heightU <= 1) return `U${eq.positionU}`;
   return `U${eq.positionU}–${eq.positionU + eq.heightU - 1}`;
@@ -310,7 +375,7 @@ function parseEquipment(raw: unknown, ctx: string, rackId: string, ordinal: numb
   if (heightU === null || heightU < 1) return `${ctx} / ${name} : "heightU" doit être un entier ≥ 1.`;
   const type = asString(raw.type, "other");
   const status = asString(raw.status, "ok");
-  return {
+  const draft: Equipment = {
     id: asString(raw.id) || `${rackId}-eq${ordinal}`,
     name,
     type: TYPE_IDS.has(type as EquipmentType) ? (type as EquipmentType) : "other",
@@ -322,7 +387,20 @@ function parseEquipment(raw: unknown, ctx: string, rackId: string, ordinal: numb
     heightU,
     powerW: Math.max(0, Math.round(asNumber(raw.powerW))),
     status: STATUS_IDS.has(status as EquipmentStatus) ? (status as EquipmentStatus) : "ok",
+    ip: "",
+    observations: "",
+    psuCount: 0,
+    networkPorts: 0,
     notes: asString(raw.notes),
+  };
+  const structured = "ip" in raw || "observations" in raw || "psuCount" in raw || "networkPorts" in raw;
+  if (!structured) return { ...draft, ...splitLegacyEquipmentNotes(draft.notes) };
+  return {
+    ...draft,
+    ip: asString(raw.ip),
+    observations: asString(raw.observations),
+    psuCount: Math.max(0, Math.round(asNumber(raw.psuCount))),
+    networkPorts: Math.max(0, Math.round(asNumber(raw.networkPorts))),
   };
 }
 
@@ -467,7 +545,9 @@ export const JSON_EXAMPLE = `{
                   "positionU": 10,
                   "heightU": 2,
                   "powerW": 420,
-                  "status": "ok"
+                  "status": "ok",
+                  "ip": "172.16.0.10",
+                  "observations": "Hyperviseur de la baie"
                 }
               ]
             },

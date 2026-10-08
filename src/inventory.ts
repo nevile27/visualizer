@@ -230,13 +230,11 @@ export function parseInventorySheets(sheets: SheetGrid[], fileName: string): Inv
         heightU: span.heightU,
         powerW: 0,
         status: status.status,
-        notes: joinNotes([
-          observations,
-          ip ? `IP ${ip}` : "",
-          psu !== null && psu > 0 ? `${psu} alimentation${psu > 1 ? "s" : ""}` : "",
-          ports !== null && ports > 0 ? `${ports} port${ports > 1 ? "s" : ""} réseau` : "",
-          !status.known && status.raw ? `Statut : ${status.raw}` : "",
-        ]),
+        ip,
+        observations,
+        psuCount: psu !== null && psu > 0 ? psu : 0,
+        networkPorts: ports !== null && ports > 0 ? ports : 0,
+        notes: !status.known && status.raw ? `Statut : ${status.raw}` : "",
       };
       draft.rack.equipment.push(equipment);
       if (top > draft.rack.heightU) draft.rack.heightU = top;

@@ -201,30 +201,19 @@ function Cabinet({
   );
 }
 
-function equipmentFacts(notes: string) {
-  const ips: string[] = [];
-  const observations: string[] = [];
-  const extra: string[] = [];
-  for (const line of notes.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean)) {
-    const labeled = line.match(/^(?:ip|adresse ip)\s*:?\s*(.+)$/i);
-    if (labeled) {
-      ips.push(labeled[1]);
-      continue;
-    }
-    if (/^\d+\s+alimentations?$/i.test(line) || /^\d+\s+ports?(?:\s+réseau)?$/i.test(line) || /^statut\s*:/i.test(line)) {
-      extra.push(line);
-      continue;
-    }
-    observations.push(line);
-    for (const address of line.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) ?? []) ips.push(address);
-  }
-  return { ips: [...new Set(ips)], observations: observations.join("\n"), extra };
+function equipmentDetail(equipment: Equipment) {
+  const extra = [
+    equipment.psuCount > 0 ? `${equipment.psuCount} alimentation${equipment.psuCount > 1 ? "s" : ""}` : "",
+    equipment.networkPorts > 0 ? `${equipment.networkPorts} port${equipment.networkPorts > 1 ? "s" : ""} réseau` : "",
+    equipment.notes,
+  ].filter(Boolean);
+  return { observations: equipment.observations, ip: equipment.ip, extra };
 }
 
 function EquipmentCard({ equipment, rackName }: { equipment: Equipment; rackName: string }) {
   const kind = typeMeta(equipment.type);
   const status = statusMeta(equipment.status);
-  const facts = equipmentFacts(equipment.notes);
+  const detail = equipmentDetail(equipment);
   const identity = [equipment.manufacturer, equipment.model].filter(Boolean).join(" ");
   return (
     <div className="eq-card">
@@ -232,9 +221,9 @@ function EquipmentCard({ equipment, rackName }: { equipment: Equipment; rackName
       <strong>{equipment.name}</strong>
       <p>{[kind.label, identity].filter(Boolean).join(" · ")}</p>
       <p><i style={{ background: status.color }} />{status.label}</p>
-      {facts.observations ? <p className="eq-card-notes">{facts.observations}</p> : null}
-      {facts.ips.length ? <p className="eq-card-ip">IP {facts.ips.join(" · ")}</p> : null}
-      {facts.extra.length ? <p>{facts.extra.join(" · ")}</p> : null}
+      {detail.observations ? <p className="eq-card-notes">{detail.observations}</p> : null}
+      {detail.ip ? <p className="eq-card-ip">IP {detail.ip}</p> : null}
+      {detail.extra.length ? <p>{detail.extra.join(" · ")}</p> : null}
     </div>
   );
 }
