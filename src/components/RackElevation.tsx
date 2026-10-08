@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { placementError } from "../model";
 import type { Equipment, Rack } from "../types";
 import { typeMeta } from "../model";
@@ -62,8 +63,13 @@ function EquipmentBlock({
 }) {
   const meta = typeMeta(eq.type);
   const topU = eq.positionU + eq.heightU - 1;
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (active) ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [active]);
   return (
     <button
+      ref={ref}
       type="button"
       className={`eq-block ${active ? "active" : ""}`}
       style={{

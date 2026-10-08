@@ -1,14 +1,33 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { sideItems, sideLabel } from "../model";
 import { useStore } from "../store";
-import type { AisleItem } from "../types";
+import type { AisleItem, DataCenter, Equipment, Selection } from "../types";
+
+function equipmentText(equipment: Equipment) {
+  return `${equipment.name} ${equipment.manufacturer} ${equipment.model} ${equipment.assetTag} ${equipment.serial} ${equipment.ip} ${equipment.observations} ${equipment.notes}`.toLowerCase();
+}
 
 function itemMatches(item: AisleItem, query: string) {
   if (!query) return true;
   const extra = item.kind === "rack"
-    ? item.equipment.map((eq) => `${eq.name} ${eq.manufacturer} ${eq.model} ${eq.assetTag} ${eq.serial} ${eq.ip} ${eq.observations} ${eq.notes}`).join(" ")
+    ? item.equipment.map((equipment) => equipmentText(equipment)).join(" ")
     : item.coolingType;
   return `${item.name} ${extra}`.toLowerCase().includes(query);
+}
+
+function uniqueEquipment(dc: DataCenter, needle: string): Extract<Selection, { kind: "equipment" }> | null {
+  let hit: Extract<Selection, { kind: "equipment" }> | null = null;
+  for (const aisle of dc.aisles) {
+    for (const item of aisle.items) {
+      if (item.kind !== "rack") continue;
+      for (const equipment of item.equipment) {
+        if (!equipmentText(equipment).includes(needle)) continue;
+        if (hit) return null;
+        hit = { kind: "equipment", aisleId: aisle.id, itemId: item.id, equipmentId: equipment.id };
+      }
+    }
+  }
+  return hit;
 }
 
 export function Sidebar() {
@@ -23,6 +42,19 @@ export function Sidebar() {
       .map((aisle) => ({ aisle, items: aisle.items.filter((item) => itemMatches(item, needle)) }))
       .filter((entry) => !needle || entry.items.length > 0 || entry.aisle.name.toLowerCase().includes(needle));
   }, [activeDc, needle]);
+
+  useEffect(() => {
+    if (!activeDc || !needle) return;
+    const hit = uniqueEquipment(activeDc, needle);
+    if (!hit) return;
+    if (
+      selection?.kind === "equipment" &&
+      selection.aisleId === hit.aisleId &&
+      selection.itemId === hit.itemId &&
+      selection.equipmentId === hit.equipmentId
+    ) return;
+    select(hit);
+  }, [activeDc, needle, selection, select]);
 
   if (!activeDc) {
     return (
